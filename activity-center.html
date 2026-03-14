@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>活动中心</title>
+  <link rel="stylesheet" href="./activity-center.css" />
+</head>
+
+<body>
+  <div class="task-center-root">
+    <!-- 头部：用户信息 -->
+    <header class="tc-header">
+      <div class="tc-header-left">
+        <div class="tc-avatar"></div>
+        <div class="tc-user-meta">
+          <div class="tc-user-name" id="userGreeting"></div>
+          <div class="tc-user-tag">
+            <span class="tc-user-tag-icon">★</span>
+            <span class="tc-user-tag-text">Gold Member</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="tc-main">
+      <!-- 余额卡片 -->
+      <section class="tc-section">
+        <div class="tc-card tc-balance-card">
+          <div class="tc-balance-main">
+            <div class="tc-balance-icon">
+              <div class="tc-balance-icon-inner">
+                <img src="./icons/gold_coin.svg" alt="coins" class="icon-img">
+              </div>
+            </div>
+            <div class="tc-balance-left">
+              <div class="tc-balance-label">My Balance</div>
+              <div class="tc-balance-value">
+                <span id="goldCoins">750</span>
+                <span class="tc-balance-unit">Gold Coins</span>
+              </div>
+            </div>
+          </div>
+          <button class="tc-primary-btn" id="exchangeBtn">Redeem</button>
+        </div>
+      </section>
+
+      <!-- 活动流程提示：Complete Tasks -> Earn Coins -> Redeem -->
+      <section class="tc-section">
+        <div class="tc-card tc-flow-card">
+          <h2 class="tc-flow-title">Turn your activities into rewards!</h2>
+          <div class="tc-flow-steps">
+            <div class="tc-flow-step">
+              <div class="tc-flow-icon">
+                <img src="./icons/task_alt.svg" alt="tasks" class="icon-img">
+              </div>
+              <p class="tc-flow-text">Complete<br />tasks</p>
+            </div>
+            <div class="tc-flow-step">
+              <div class="tc-flow-icon">
+                <img src="./icons/gold_coin.svg" alt="coins" class="icon-img">
+              </div>
+              <p class="tc-flow-text">Earn<br />gold coins</p>
+            </div>
+            <div class="tc-flow-step">
+              <div class="tc-flow-icon">
+                <img src="./icons/phone_iphone.svg" alt="credit" class="icon-img">
+              </div>
+              <p class="tc-flow-text">Redeem<br />credit</p>
+            </div>
+          </div>
+          <div class="tc-flow-footer">
+            <span class="tc-flow-badge">Tip</span>
+            <span class="tc-flow-desc">Use gold coins to redeem local mobile recharge and other rewards.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 每日签到 -->
+      <section class="tc-section">
+        <div class="tc-card tc-checkin-card">
+          <div class="tc-card-header">
+            <h2 class="tc-card-title">Daily Check-in</h2>
+            <span class="tc-pill">3/7 Days</span>
+          </div>
+          <div class="tc-checkin-days">
+            <div class="tc-checkin-day tc-checkin-day--done">
+              <div class="tc-checkin-dot">
+                <span>✓</span>
+                <span>+10</span>
+              </div>
+              <span class="tc-checkin-label">Day 1</span>
+            </div>
+            <div class="tc-checkin-day tc-checkin-day--done">
+              <div class="tc-checkin-dot">
+                <span>✓</span>
+                <span>+10</span>
+              </div>
+              <span class="tc-checkin-label">Day 2</span>
+            </div>
+            <div class="tc-checkin-day tc-checkin-day--done">
+              <div class="tc-checkin-dot">
+                <span>✓</span>
+                <span>+10</span>
+              </div>
+              <span class="tc-checkin-label">Day 3</span>
+            </div>
+            <div class="tc-checkin-day">
+              <div class="tc-checkin-dot tc-checkin-dot--reward">+10</div>
+              <span class="tc-checkin-label">Day 4</span>
+            </div>
+            <div class="tc-checkin-day">
+              <div class="tc-checkin-dot tc-checkin-dot--reward">+10</div>
+              <span class="tc-checkin-label">Day 5</span>
+            </div>
+            <div class="tc-checkin-day">
+              <div class="tc-checkin-dot tc-checkin-dot--reward">+10</div>
+              <span class="tc-checkin-label">Day 6</span>
+            </div>
+            <div class="tc-checkin-day tc-checkin-day--super">
+              <div class="tc-checkin-dot tc-checkin-dot--super">
+                <img src="./icons/card_giftcard.svg" alt="gift" class="tc-checkin-super-icon-img">
+                <span class="tc-checkin-super-reward">+50</span>
+              </div>
+              <span class="tc-checkin-label tc-checkin-label--super">Day 7</span>
+            </div>
+          </div>
+          <button class="tc-primary-btn tc-primary-btn--full" id="signin-timer-btn">
+            <img src="./icons/calendar_today.svg" class="tc-icon-calendar" alt="" />
+            <span>Check-in Now</span>
+          </button>
+          <p class="tc-checkin-tip">Day 7: Super Prize Day</p>
+        </div>
+      </section>
+
+      <!-- 看视频任务 -->
+      <section class="tc-section">
+        <h2 class="tc-section-title">Tasks for You</h2>
+        <div class="tc-card tc-video-card">
+          <div class="tc-video-head">
+            <div class="tc-video-icon">
+              <img src="./icons/play_circle.svg" class="tc-icon--large" alt="" />
+            </div>
+            <div class="tc-video-text">
+              <h3 class="tc-card-title">Daily Video Task</h3>
+              <p class="tc-card-subtitle" id="ad-task-desc">
+                Watch 5 videos to earn
+                <span class="tc-ad-highlight">
+                  <span id="ad-reward-amount">100</span>
+                  <img src="./icons/gold_coin.svg" alt="coins" class="tc-ad-coin-inline-img">
+                </span>
+                gold coins (20 per video)
+              </p>
+            </div>
+          </div>
+          <div class="tc-video-progress">
+            <div class="tc-video-progress-header">
+              <span id="ad-earned-text">Earned: 40 / 100 Gold Coins</span>
+              <span class="tc-video-progress-value" id="ad-progress-videos">2 / 5 Videos</span>
+            </div>
+            <div class="tc-video-progress-bar">
+              <div class="tc-video-progress-fill"></div>
+            </div>
+          </div>
+          <button class="tc-secondary-btn" id="btn-watch-ad">
+            <img src="./icons/play_arrow.svg" class="tc-icon-play" alt="" />
+            <span>Watch Now</span>
+          </button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 广告播放浮层（保留原有结构与 ID，复用现有逻辑） -->
+  <div class="ad-overlay" id="adOverlay" style="display: none;">
+    <div class="ad-container">
+      <div class="ad-header">
+        <span class="ad-title">观看广告</span>
+        <button class="ad-close" id="adCloseBtn">✕</button>
+      </div>
+      <div class="ad-content" id="adContent">
+        <div class="ad-video-placeholder">
+          <div class="ad-progress-bar">
+            <div class="ad-progress-fill" id="adProgress"></div>
+          </div>
+          <div class="ad-progress-text" id="adProgressText">广告播放中... 0%</div>
+        </div>
+      </div>
+      <div class="ad-footer">
+        <div class="ad-tip">观看完整广告后可领取积分</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 签到成功弹框：引导用户看视频获取 3 倍金币 -->
+  <div class="signin-dialog-overlay" id="signinDialog" style="display: none;">
+    <div class="signin-dialog">
+      <button class="signin-dialog-close" id="signinDialogCloseBtn">✕</button>
+      <h2 class="signin-dialog-title">签到成功</h2>
+      <p class="signin-dialog-subtitle">今日已获得基础签到奖励</p>
+      <div class="signin-dialog-reward">
+        <span class="signin-dialog-reward-label">看视频再拿</span>
+        <span class="signin-dialog-reward-value">
+          <span id="signinDialogReward">0</span>
+          <span class="signin-dialog-reward-unit">Gold Coins</span>
+        </span>
+        <span class="signin-dialog-reward-tag">3×</span>
+      </div>
+      <button class="signin-dialog-watch-btn" id="signinDialogWatchBtn">
+        <span class="tc-icon">▶</span>
+        <span>看视频获取 3 倍金币</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" style="display: none;"></div>
+
+  <script type="module">
+    // 导入业务逻辑层、适配器层和 UI 层
+    import { WelfareCenterBusiness as ActivityCenterBusiness } from "./activity-center-business.js";
+    import { WelfareCenterAdapter as ActivityCenterAdapter } from "./activity-center-adapter.js";
+    import { WelfareCenterUI as ActivityCenterUI } from "./activity-center-ui.js";
+
+    // ==================== H5 与 SDK 协商接口 ====================
+    // 从 URL 获取参数（H5 需要知道如何获取这些参数）
+    const qp = new URLSearchParams(window.location.search);
+    const activityId = qp.get("activityId") || "activity_center_202512";
+    const code = qp.get("code") || "";
+    const token = qp.get("token") || "";
+    const channelTag = qp.get("channelTag") || "";
+    const userIdFromUrl = qp.get("user_id") || qp.get("userId") || "";
+
+    // 解析 JWT token（如果需要从 token 中提取用户信息）
+    function parseJwt(rawToken) {
+      if (!rawToken) return null;
+      const parts = rawToken.split(".");
+      if (parts.length < 2) return null;
+      try {
+        const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+        const json = decodeURIComponent(
+          atob(base64)
+            .split("")
+            .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+            .join("")
+        );
+        return JSON.parse(json);
+      } catch (error) {
+        console.error("Parse jwt failed", error);
+        return null;
+      }
+    }
+
+    const jwtClaims = parseJwt(token);
+
+    // ==================== 初始化各层 ====================
+    // 1. 初始化业务逻辑层
+    const business = new ActivityCenterBusiness({
+      onAssetsUpdate: (assets) => {
+        ui.updateAssets(assets);
+      },
+      onTaskUpdate: (tasks) => {
+        ui.updateTasks(tasks);
+      },
+      onToast: (message, type) => {
+        ui.showToast(message, type);
+      },
+    });
+
+    // 2. 初始化适配器层（H5-SDK 协商）
+    const adapter = new ActivityCenterAdapter({
+      activityId,
+      code,
+      token,
+      channelTag,
+      onSDKReady: (session) => {
+        console.log("SDK 初始化完成:", session);
+        // 优先请求后端基础数据接口，失败则用 mock
+        const apiOptions = {
+          baseUrl: qp.get("apiBaseUrl") || "http://10.0.33.63:8080",
+          app_id: qp.get("app_id") || "asdfjjshdsafj23h2",
+          app_secret: qp.get("app_secret") || "qerqwershdsafj23h2sdfaasdf",
+        };
+        business.loadActivityInfo(apiOptions);
+
+        // 更新用户问候语
+        const name =
+          jwtClaims?.username ||
+          jwtClaims?.user_name ||
+          jwtClaims?.nickname ||
+          jwtClaims?.name ||
+          userIdFromUrl ||
+          "";
+        const email = jwtClaims?.email || jwtClaims?.mail || "";
+        ui.updateUserGreeting(name, email);
+      },
+      onEventCompleted: (result) => {
+        // 处理 SDK 事件完成回调（H5 需要知道如何处理这些事件）
+        handleSDKEventCompleted(result);
+      },
+    });
+
+    // 3. 初始化 UI 层
+    const ui = new ActivityCenterUI({
+      onWatchAdClick: async () => {
+        // 触发广告（通过适配器调用 SDK）
+        try {
+          const adTaskStatus = business.getAdTaskStatus();
+          await adapter.triggerRewardAd({ reward: adTaskStatus.reward });
+        } catch (error) {
+          ui.showToast("广告功能暂不可用", "error");
+        }
+      },
+      onClaimAdClick: async () => {
+        // 领取奖励（业务逻辑层处理）
+        await business.claimAdReward();
+      },
+      onAdCloseClick: () => {
+        ui.hideAdOverlay();
+      },
+      onWithdrawClick: () => {
+        // 从当前 URL 继承 activityId / code / channelTag 等参数
+        const search = window.location.search || "";
+        window.location.href = `./gold-coins-exchange.html${search}`;
+      },
+      onSigninClick: async () => {
+        // 签到逻辑：当前阶段使用伪代码，假定一定签到成功
+        // 后续接入真实后端接口时，在这里替换为实际请求。
+        ui.showToast("签到成功", "success");
+
+        // 使用当前广告任务的基础奖励，展示 3 倍金币文案
+        const adTaskStatus = business.getAdTaskStatus();
+        ui.showSigninDialog(adTaskStatus.reward);
+      },
+    });
+
+    // ==================== H5-SDK 协商：事件处理 ====================
+    /**
+     * 处理 SDK 事件完成回调
+     * 这是 H5 需要知道如何响应 SDK 事件的协商点
+     */
+    function handleSDKEventCompleted(result) {
+      console.log("活动事件完成回调:", result);
+
+      if (!result || !result.eventType) {
+        console.warn("事件完成回调数据格式错误:", result);
+        return;
+      }
+
+      const eventType = result.eventType;
+      const success = result.success;
+      const message = result.message || "";
+
+      // 根据事件类型处理（H5 需要知道如何处理这些事件类型）
+      if (eventType === window.ADActivitySDK?.EventType?.REWARD_AD) {
+        if (success) {
+          // 广告观看完成，标记可领取
+          business.markAdCanClaim();
+          ui.showToast("广告观看完成，可以领取金币了！", "success");
+
+          // 追踪事件（通过适配器）
+          const adTaskStatus = business.getAdTaskStatus();
+          adapter.trackEvent("ad_watch_completed", {
+            taskId: "task_watch_ad",
+            reward: adTaskStatus.reward,
+            success: true,
+            platform: adapter.getPlatform(),
+          });
+        } else {
+          ui.showToast(message || "广告观看未完成", "warning");
+          adapter.trackEvent("ad_watch_failed", {
+            taskId: "task_watch_ad",
+            reason: message || "unknown",
+          });
+        }
+      } else if (eventType === window.ADActivitySDK?.EventType?.RED_PACKET) {
+        console.log("红包雨事件完成:", result);
+      } else if (eventType === window.ADActivitySDK?.EventType?.SIGN_IN) {
+        console.log("签到事件完成:", result);
+      }
+    }
+
+    // 设置 SDK 事件回调（H5-SDK 协商）
+    adapter.setupEventCallback();
+
+    // 广告播放错误处理（H5-SDK 协商）
+    window.onRewardedAdError = function (error) {
+      console.error("广告播放错误:", error);
+      ui.showToast("广告播放失败，请重试", "error");
+      adapter.trackEvent("ad_watch_error", {
+        taskId: "task_watch_ad",
+        error: error?.message || String(error),
+      });
+    };
+
+    // ==================== 页面初始化 ====================
+    // 绑定 UI 事件
+    ui.bindEvents();
+
+    // 初始化适配器（会触发 SDK 初始化）
+    adapter.init().catch((error) => {
+      console.error("初始化失败", error);
+      ui.showToast("初始化失败，请重试", "error");
+    });
+  </script>
+</body>
+
+</html>

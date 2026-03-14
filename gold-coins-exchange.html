@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>金币兑换</title>
+  <link rel="stylesheet" href="./gold-coins-exchange.css" />
+</head>
+
+<body>
+  <div class="redeem-root">
+    <!-- 顶部导航 -->
+    <header class="redeem-header">
+      <button class="redeem-back-btn" id="backBtn">←</button>
+      <h1 class="redeem-header-title">金币兑换</h1>
+      <div class="redeem-header-spacer"></div>
+    </header>
+
+    <main class="redeem-main">
+      <!-- 钱包 / 金币概览 -->
+      <section class="redeem-section">
+        <div class="redeem-wallet-card">
+          <div class="redeem-wallet-left">
+            <div class="redeem-wallet-label">我的金币</div>
+            <div class="redeem-wallet-value">
+              <span id="userGoldCoins">750</span>
+              <span class="redeem-wallet-unit">Gold Coins</span>
+            </div>
+            <div class="redeem-wallet-hint">可用于兑换话费等权益</div>
+          </div>
+          <div class="redeem-wallet-icon">
+            <img src="./icons/gold_coin.svg" alt="coins" class="icon-img">
+          </div>
+        </div>
+      </section>
+
+      <!-- 话费充值兑换 -->
+      <section class="redeem-section">
+        <h2 class="redeem-section-title">话费充值</h2>
+
+        <!-- 手机号输入 -->
+        <div class="redeem-field">
+          <label class="redeem-label" for="inputMobile">手机号</label>
+          <div class="redeem-input-wrapper">
+            <span class="redeem-input-prefix">+86</span>
+            <input
+              id="inputMobile"
+              class="redeem-input"
+              type="tel"
+              maxlength="11"
+              placeholder="请输入 11 位手机号"
+            />
+          </div>
+        </div>
+
+        <!-- 运营商选择 -->
+        <div class="redeem-field">
+          <label class="redeem-label">运营商</label>
+          <div class="redeem-operator-grid" id="operatorGrid">
+            <button class="redeem-operator-btn redeem-operator-btn--active" data-operator="China Mobile">
+              中国移动
+            </button>
+            <button class="redeem-operator-btn" data-operator="China Unicom">
+              中国联通
+            </button>
+            <button class="redeem-operator-btn" data-operator="China Telecom">
+              中国电信
+            </button>
+          </div>
+        </div>
+
+        <!-- 面额选择 -->
+        <div class="redeem-field">
+          <label class="redeem-label">充值面额</label>
+          <div class="redeem-amount-grid" id="amountGrid">
+            <button class="redeem-amount-btn" data-amount="10">¥10</button>
+            <button class="redeem-amount-btn" data-amount="30">¥30</button>
+            <button class="redeem-amount-btn" data-amount="50">¥50</button>
+            <button class="redeem-amount-btn" data-amount="100">¥100</button>
+          </div>
+        </div>
+
+        <!-- 金币消耗提示 -->
+        <div class="redeem-summary" id="redeemSummary">
+          请选择面额，查看所需金币
+        </div>
+
+        <!-- 兑换按钮 -->
+        <button class="redeem-primary-btn redeem-primary-btn--disabled" id="btnRedeem" disabled>
+          立即兑换
+        </button>
+      </section>
+
+      <!-- 兑换记录 -->
+      <section class="redeem-section redeem-history-section">
+        <div class="redeem-history-header">
+          <h2 class="redeem-section-title">兑换记录</h2>
+        </div>
+        <div class="redeem-history-list" id="historyList">
+          <!-- 历史记录由 JS 动态插入；可预置 0 或少量 mock 数据 -->
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal" id="exchangeModal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">确认兑换</h2>
+        <button class="modal-close" id="modalCloseBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="product-preview">
+          <div class="preview-icon" id="previewIcon"></div>
+          <div class="preview-info">
+            <div class="preview-name" id="previewName"></div>
+            <div class="preview-points" id="previewPoints"></div>
+          </div>
+        </div>
+        <div class="modal-message">
+          <p>确认用 <span id="confirmPoints"></span> 金币兑换 <span id="confirmName"></span> 吗？</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" id="cancelBtn">取消</button>
+        <button class="btn-confirm" id="confirmBtn">确认兑换</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" style="display: none;"></div>
+
+  <script type="module">
+    import { GoldCoinsExchange } from "./gold-coins-exchange.js";
+
+    const qp = new URLSearchParams(window.location.search);
+    const apiOptions = {
+      baseUrl: qp.get("apiBaseUrl") || "http://10.0.33.63:8080",
+      app_id: qp.get("app_id") || "asdfjjshdsafj23h2",
+      app_secret: qp.get("app_secret") || "qerqwershdsafj23h2sdfaasdf",
+    };
+
+    const exchange = new GoldCoinsExchange({
+      apiOptions,
+      onExchangeSuccess: (product) => {
+        showToast(`成功兑换 ${product.name}！`, "success");
+      },
+      onExchangeFailed: (message) => {
+        showToast(message, "error");
+      },
+    });
+
+    // 返回按钮
+    document.getElementById("backBtn").addEventListener("click", () => {
+      window.history.back();
+    });
+
+    // 显示 Toast
+    function showToast(message, type = "info") {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.className = `toast ${type}`;
+      toast.style.display = "block";
+      setTimeout(() => {
+        toast.style.display = "none";
+      }, 2000);
+    }
+
+    // 初始化页面
+    exchange.init();
+  </script>
+</body>
+
+</html>

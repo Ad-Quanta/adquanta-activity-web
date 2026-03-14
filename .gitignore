@@ -1,0 +1,44 @@
+# 原型图、设计稿（不提交，仅本地）
+原型图/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.so
+*.egg-info/
+.eggs/
+
+# 环境与敏感信息
+.env
+.env.local
+.env.*.local
+
+# 日志与临时
+*.log
+/tmp/
+*.tmp
+*.temp
+
+# 备份与临时编辑
+*.bak
+*~
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 构建/产出（若有）
+dist/
+build/
+*.min.js
+*.min.css
