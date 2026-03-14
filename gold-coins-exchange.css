@@ -707,7 +707,20 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+}
+
+.redeem-history-view-all {
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ec5b13;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.redeem-history-view-all:active {
+  opacity: 0.8;
 }
 
 .redeem-history-list {
@@ -736,6 +749,15 @@ body {
   background-color: rgba(16, 185, 129, 0.12);
   color: #059669;
   font-size: 16px;
+}
+
+.redeem-history-icon--earn {
+  background-color: rgba(236, 91, 19, 0.12);
+  color: #ec5b13;
+}
+
+.redeem-history-amount--earn {
+  color: #059669;
 }
 
 .redeem-history-main {

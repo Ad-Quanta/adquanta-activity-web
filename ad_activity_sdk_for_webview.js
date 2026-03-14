@@ -82,7 +82,7 @@
                 var session = typeof result === 'string' ? JSON.parse(result) : result;
                 resolve(session);
             } catch (e) {
-                console.error('ADActivitySDK.initActivity 调用失败:', e);
+                console.error('[ActivityWeb] ADActivitySDK.initActivity 调用失败:', e);
                 reject(e);
             }
         });
@@ -107,7 +107,7 @@
                 var response = typeof result === 'string' ? JSON.parse(result) : result;
                 resolve(response);
             } catch (e) {
-                console.error('ADActivitySDK.trackEvent 调用失败:', e);
+                console.error('[ActivityWeb] ADActivitySDK.trackEvent 调用失败:', e);
                 reject(e);
             }
         });
@@ -126,7 +126,7 @@
             var result = window.ADActivitySDK.getSession();
             return typeof result === 'string' ? JSON.parse(result) : result;
         } catch (e) {
-            console.error('ADActivitySDK.getSession 调用失败:', e);
+            console.error('[ActivityWeb] ADActivitySDK.getSession 调用失败:', e);
             return null;
         }
     };
@@ -170,7 +170,7 @@
                 var response = typeof result === 'string' ? JSON.parse(result) : result;
                 resolve(response);
             } catch (e) {
-                console.error('ADActivitySDK.triggerEvent 调用失败:', e);
+                console.error('[ActivityWeb] ADActivitySDK.triggerEvent 调用失败:', e);
                 reject(e);
             }
         });
@@ -208,7 +208,7 @@
                 setTimeout(function() {
                     clearInterval(checkInterval);
                     if (!window.ADActivitySDK.isAvailable()) {
-                        console.warn('ADActivitySDK: SDK 加载超时');
+                        console.warn('[ActivityWeb] ADActivitySDK: SDK 加载超时');
                     }
                 }, 5000);
             }
@@ -219,7 +219,7 @@
     window.ADActivitySDK.debug = false;
     window.ADActivitySDK.log = function() {
         if (window.ADActivitySDK.debug) {
-            console.log.apply(console, ['[ADActivitySDK]'].concat(Array.prototype.slice.call(arguments)));
+            console.log.apply(console, ['[ActivityWeb]'].concat(Array.prototype.slice.call(arguments)));
         }
     };
     

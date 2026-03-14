@@ -24,7 +24,7 @@
           <div class="redeem-wallet-left">
             <div class="redeem-wallet-label">我的金币</div>
             <div class="redeem-wallet-value">
-              <span id="userGoldCoins">750</span>
+              <span id="userGoldCoins">0</span>
               <span class="redeem-wallet-unit">Gold Coins</span>
             </div>
             <div class="redeem-wallet-hint">可用于兑换话费等权益</div>
@@ -92,10 +92,11 @@
         </button>
       </section>
 
-      <!-- 兑换记录 -->
+      <!-- 兑换记录（样式参考设计稿 原型图/兑换/code.html） -->
       <section class="redeem-section redeem-history-section">
         <div class="redeem-history-header">
           <h2 class="redeem-section-title">兑换记录</h2>
+          <button type="button" class="redeem-history-view-all" id="viewAllRecords">查看全部</button>
         </div>
         <div class="redeem-history-list" id="historyList">
           <!-- 历史记录由 JS 动态插入；可预置 0 或少量 mock 数据 -->

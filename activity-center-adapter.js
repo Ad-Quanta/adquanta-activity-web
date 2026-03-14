@@ -3,6 +3,8 @@
  * 负责：H5 页面与 SDK 之间的协商和桥接
  * 包括：SDK 初始化、事件处理、回调注册
  */
+import * as logger from "./activity-logger.js";
+
 export class WelfareCenterAdapter {
   constructor(config = {}) {
     this.config = {
@@ -35,7 +37,7 @@ export class WelfareCenterAdapter {
           this.config.token,
           this.config.channelTag
         );
-        console.log("活动会话初始化成功:", session);
+        logger.log("活动会话初始化成功:", session);
 
         // 追踪页面浏览事件
         await window.ADActivitySDK.trackEvent("page_view", {
@@ -46,11 +48,11 @@ export class WelfareCenterAdapter {
         this.config.onSDKReady(session);
         return session;
       } catch (error) {
-        console.error("SDK init failed", error);
+        logger.error("SDK init failed", error);
         throw error;
       }
     } else {
-      console.warn("ADActivitySDK 不可用，使用降级方案");
+      logger.warn("ADActivitySDK 不可用，使用降级方案");
       this.isSDKReady = false;
       this.config.onSDKReady(null);
       return null;
@@ -89,7 +91,7 @@ export class WelfareCenterAdapter {
         } else if (checkCount >= 30) {
           // 3秒超时
           clearInterval(checkInterval);
-          console.warn(
+          logger.warn(
             "ADActivitySDK 加载超时，可能原生未注入或 CDN 加载失败"
           );
           resolve(); // 仍然继续，不阻塞页面初始化
@@ -110,19 +112,19 @@ export class WelfareCenterAdapter {
     const script = document.createElement("script");
     script.src = "./ad_activity_sdk_for_webview.js";
     script.onerror = () => {
-      console.warn("无法从本地加载 Web SDK，尝试从 CDN 加载");
+      logger.warn("无法从本地加载 Web SDK，尝试从 CDN 加载");
       // 从 CDN 加载
       const cdnScript = document.createElement("script");
       cdnScript.src = "https://your-cdn.com/js/ad_activity_sdk_for_webview.js";
       cdnScript.onerror = () => {
-        console.warn(
+        logger.warn(
           "无法从 CDN 加载 Web SDK，请确保原生 SDK 已注入或提供正确的 CDN 地址"
         );
       };
       document.head.appendChild(cdnScript);
     };
     script.onload = () => {
-      console.log("ADActivitySDK: Web SDK 辅助库已从本地加载");
+      logger.log("ADActivitySDK: Web SDK 辅助库已从本地加载");
     };
     document.head.appendChild(script);
   }
@@ -170,7 +172,7 @@ export class WelfareCenterAdapter {
    */
   async trackEvent(eventType, eventData = {}) {
     if (!window.ADActivitySDK || !window.ADActivitySDK.trackEvent) {
-      console.warn("ADActivitySDK.trackEvent 不可用");
+      logger.warn("ADActivitySDK.trackEvent 不可用");
       return;
     }
 

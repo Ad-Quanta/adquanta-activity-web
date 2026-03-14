@@ -37,7 +37,7 @@
             <div class="tc-balance-left">
               <div class="tc-balance-label">My Balance</div>
               <div class="tc-balance-value">
-                <span id="goldCoins">750</span>
+                <span id="goldCoins">0</span>
                 <span class="tc-balance-unit">Gold Coins</span>
               </div>
             </div>
@@ -77,55 +77,14 @@
         </div>
       </section>
 
-      <!-- 每日签到 -->
+      <!-- 每日签到（7 天由 JS 根据接口 detail.days 动态渲染） -->
       <section class="tc-section">
         <div class="tc-card tc-checkin-card">
           <div class="tc-card-header">
             <h2 class="tc-card-title">Daily Check-in</h2>
-            <span class="tc-pill">3/7 Days</span>
+            <span class="tc-pill" id="tc-checkin-pill">0/7 Days</span>
           </div>
-          <div class="tc-checkin-days">
-            <div class="tc-checkin-day tc-checkin-day--done">
-              <div class="tc-checkin-dot">
-                <span>✓</span>
-                <span>+10</span>
-              </div>
-              <span class="tc-checkin-label">Day 1</span>
-            </div>
-            <div class="tc-checkin-day tc-checkin-day--done">
-              <div class="tc-checkin-dot">
-                <span>✓</span>
-                <span>+10</span>
-              </div>
-              <span class="tc-checkin-label">Day 2</span>
-            </div>
-            <div class="tc-checkin-day tc-checkin-day--done">
-              <div class="tc-checkin-dot">
-                <span>✓</span>
-                <span>+10</span>
-              </div>
-              <span class="tc-checkin-label">Day 3</span>
-            </div>
-            <div class="tc-checkin-day">
-              <div class="tc-checkin-dot tc-checkin-dot--reward">+10</div>
-              <span class="tc-checkin-label">Day 4</span>
-            </div>
-            <div class="tc-checkin-day">
-              <div class="tc-checkin-dot tc-checkin-dot--reward">+10</div>
-              <span class="tc-checkin-label">Day 5</span>
-            </div>
-            <div class="tc-checkin-day">
-              <div class="tc-checkin-dot tc-checkin-dot--reward">+10</div>
-              <span class="tc-checkin-label">Day 6</span>
-            </div>
-            <div class="tc-checkin-day tc-checkin-day--super">
-              <div class="tc-checkin-dot tc-checkin-dot--super">
-                <img src="./icons/card_giftcard.svg" alt="gift" class="tc-checkin-super-icon-img">
-                <span class="tc-checkin-super-reward">+50</span>
-              </div>
-              <span class="tc-checkin-label tc-checkin-label--super">Day 7</span>
-            </div>
-          </div>
+          <div class="tc-checkin-days" id="tc-checkin-days-container"></div>
           <button class="tc-primary-btn tc-primary-btn--full" id="signin-timer-btn">
             <img src="./icons/calendar_today.svg" class="tc-icon-calendar" alt="" />
             <span>Check-in Now</span>
@@ -147,7 +106,7 @@
               <p class="tc-card-subtitle" id="ad-task-desc">
                 Watch 5 videos to earn
                 <span class="tc-ad-highlight">
-                  <span id="ad-reward-amount">100</span>
+                  <span id="ad-reward-amount">0</span>
                   <img src="./icons/gold_coin.svg" alt="coins" class="tc-ad-coin-inline-img">
                 </span>
                 gold coins (20 per video)
@@ -156,8 +115,8 @@
           </div>
           <div class="tc-video-progress">
             <div class="tc-video-progress-header">
-              <span id="ad-earned-text">Earned: 40 / 100 Gold Coins</span>
-              <span class="tc-video-progress-value" id="ad-progress-videos">2 / 5 Videos</span>
+              <span id="ad-earned-text">Earned: 0 / 0 Gold Coins</span>
+              <span class="tc-video-progress-value" id="ad-progress-videos">0 / 0 Videos</span>
             </div>
             <div class="tc-video-progress-bar">
               <div class="tc-video-progress-fill"></div>
@@ -193,24 +152,31 @@
     </div>
   </div>
 
-  <!-- 签到成功弹框：引导用户看视频获取 3 倍金币 -->
+  <!-- 签到成功弹框（原型：活动中心-签到成功弹框）数据来自服务端 coin / video_coin -->
   <div class="signin-dialog-overlay" id="signinDialog" style="display: none;">
-    <div class="signin-dialog">
-      <button class="signin-dialog-close" id="signinDialogCloseBtn">✕</button>
-      <h2 class="signin-dialog-title">签到成功</h2>
-      <p class="signin-dialog-subtitle">今日已获得基础签到奖励</p>
-      <div class="signin-dialog-reward">
-        <span class="signin-dialog-reward-label">看视频再拿</span>
-        <span class="signin-dialog-reward-value">
-          <span id="signinDialogReward">0</span>
-          <span class="signin-dialog-reward-unit">Gold Coins</span>
-        </span>
-        <span class="signin-dialog-reward-tag">3×</span>
+    <div class="signin-dialog-sheet">
+      <div class="signin-dialog-handle" aria-hidden="true"></div>
+      <div class="signin-dialog-body">
+        <div class="signin-dialog-celebration">
+          <div class="signin-dialog-celebration-ring"></div>
+          <div class="signin-dialog-celebration-icon">🎉</div>
+        </div>
+        <h2 class="signin-dialog-title">Check-in Successful!</h2>
+        <div class="signin-dialog-base-coins-wrap">
+          <span class="signin-dialog-base-coins" id="signinDialogBaseCoins">+0 Coins</span>
+        </div>
+        <div class="signin-dialog-boost-card">
+          <p class="signin-dialog-boost-title">Boost your reward!</p>
+          <p class="signin-dialog-boost-desc">
+            Watch a short video to get <strong class="signin-dialog-boost-strong" id="signinDialogVideoCoin">0</strong> extra coins
+          </p>
+          <button type="button" class="signin-dialog-watch-btn" id="signinDialogWatchBtn">
+            <img src="./icons/play_circle.svg" alt="" class="signin-dialog-watch-icon" width="24" height="24">
+            <span>Get <span id="signinDialogMultiplier">0</span>x Extra Coins (Watch Video)</span>
+          </button>
+          <button type="button" class="signin-dialog-claim-base" id="signinDialogClaimBaseOnly">Claim base reward only</button>
+        </div>
       </div>
-      <button class="signin-dialog-watch-btn" id="signinDialogWatchBtn">
-        <span class="tc-icon">▶</span>
-        <span>看视频获取 3 倍金币</span>
-      </button>
     </div>
   </div>
 
@@ -221,6 +187,7 @@
     import { WelfareCenterBusiness as ActivityCenterBusiness } from "./activity-center-business.js";
     import { WelfareCenterAdapter as ActivityCenterAdapter } from "./activity-center-adapter.js";
     import { WelfareCenterUI as ActivityCenterUI } from "./activity-center-ui.js";
+    import * as logger from "./activity-logger.js";
 
     // ==================== H5 与 SDK 协商接口 ====================
     // 从 URL 获取参数（H5 需要知道如何获取这些参数）
@@ -246,25 +213,30 @@
         );
         return JSON.parse(json);
       } catch (error) {
-        console.error("Parse jwt failed", error);
+        logger.error("Parse jwt failed", error);
         return null;
       }
     }
 
     const jwtClaims = parseJwt(token);
 
+    let apiOptions = {
+      baseUrl: qp.get("apiBaseUrl") || "http://10.0.33.63:8080",
+      app_id: qp.get("app_id") || "asdfjjshdsafj23h2",
+      app_secret: qp.get("app_secret") || "qerqwershdsafj23h2sdfaasdf",
+    };
+
+    /** 上次触发激励视频时的 taskId，用于回调无 taskId 时兜底（Native 可能不回传） */
+    let lastRewardAdTaskId = "task_watch_ad";
+
     // ==================== 初始化各层 ====================
     // 1. 初始化业务逻辑层
     const business = new ActivityCenterBusiness({
-      onAssetsUpdate: (assets) => {
-        ui.updateAssets(assets);
-      },
-      onTaskUpdate: (tasks) => {
-        ui.updateTasks(tasks);
-      },
-      onToast: (message, type) => {
-        ui.showToast(message, type);
-      },
+      onAssetsUpdate: (assets) => ui.updateAssets(assets),
+      onTaskUpdate: (tasks) => ui.updateTasks(tasks),
+      onCheckinUpdate: (detail) => ui.updateCheckin(detail),
+      onUserInfoUpdate: (data) => ui.updateUserDisplay(data?.user_id),
+      onToast: (message, type) => ui.showToast(message, type),
     });
 
     // 2. 初始化适配器层（H5-SDK 协商）
@@ -274,25 +246,16 @@
       token,
       channelTag,
       onSDKReady: (session) => {
-        console.log("SDK 初始化完成:", session);
-        // 优先请求后端基础数据接口，失败则用 mock
-        const apiOptions = {
-          baseUrl: qp.get("apiBaseUrl") || "http://10.0.33.63:8080",
-          app_id: qp.get("app_id") || "asdfjjshdsafj23h2",
-          app_secret: qp.get("app_secret") || "qerqwershdsafj23h2sdfaasdf",
-        };
-        business.loadActivityInfo(apiOptions);
-
-        // 更新用户问候语
-        const name =
-          jwtClaims?.username ||
-          jwtClaims?.user_name ||
-          jwtClaims?.nickname ||
-          jwtClaims?.name ||
-          userIdFromUrl ||
-          "";
-        const email = jwtClaims?.email || jwtClaims?.mail || "";
-        ui.updateUserGreeting(name, email);
+        logger.log("SDK 初始化完成:", session);
+        business.loadActivityInfo(apiOptions).then((result) => {
+          if (result?.ok && result?.data?.user_info?.user_id) {
+            ui.updateUserDisplay(result.data.user_info.user_id);
+          } else {
+            const name = jwtClaims?.username || jwtClaims?.user_name || jwtClaims?.nickname || jwtClaims?.name || userIdFromUrl || "";
+            const email = jwtClaims?.email || jwtClaims?.mail || "";
+            ui.updateUserGreeting(name, email);
+          }
+        });
       },
       onEventCompleted: (result) => {
         // 处理 SDK 事件完成回调（H5 需要知道如何处理这些事件）
@@ -305,8 +268,9 @@
       onWatchAdClick: async () => {
         // 触发广告（通过适配器调用 SDK）
         try {
+          lastRewardAdTaskId = "task_watch_ad";
           const adTaskStatus = business.getAdTaskStatus();
-          await adapter.triggerRewardAd({ reward: adTaskStatus.reward });
+          await adapter.triggerRewardAd({ taskId: "task_watch_ad", reward: adTaskStatus.reward });
         } catch (error) {
           ui.showToast("广告功能暂不可用", "error");
         }
@@ -324,13 +288,19 @@
         window.location.href = `./gold-coins-exchange.html${search}`;
       },
       onSigninClick: async () => {
-        // 签到逻辑：当前阶段使用伪代码，假定一定签到成功
-        // 后续接入真实后端接口时，在这里替换为实际请求。
-        ui.showToast("签到成功", "success");
-
-        // 使用当前广告任务的基础奖励，展示 3 倍金币文案
-        const adTaskStatus = business.getAdTaskStatus();
-        ui.showSigninDialog(adTaskStatus.reward);
+        const result = await business.doCheckin(apiOptions);
+        if (result.ok) {
+          ui.showSigninDialog(result);
+        }
+      },
+      onSigninWatchVideoClick: async () => {
+        try {
+          lastRewardAdTaskId = "task_checkin";
+          const today = business.getTodayCheckinDay();
+          await adapter.triggerRewardAd({ taskId: "task_checkin", reward: today?.video_coin });
+        } catch (e) {
+          ui.showToast("视频功能暂不可用", "error");
+        }
       },
     });
 
@@ -340,10 +310,10 @@
      * 这是 H5 需要知道如何响应 SDK 事件的协商点
      */
     function handleSDKEventCompleted(result) {
-      console.log("活动事件完成回调:", result);
+      logger.log("活动事件完成回调:", result);
 
       if (!result || !result.eventType) {
-        console.warn("事件完成回调数据格式错误:", result);
+        logger.warn("事件完成回调数据格式错误:", result);
         return;
       }
 
@@ -353,30 +323,38 @@
 
       // 根据事件类型处理（H5 需要知道如何处理这些事件类型）
       if (eventType === window.ADActivitySDK?.EventType?.REWARD_AD) {
+        // 回调里若没有 taskId，用「上次触发时」保存的 taskId 兜底（Native 可能不回传）
+        const taskId = result.taskId || result.task_id || lastRewardAdTaskId;
+        logger.log("[活动事件完成] reward_ad 分支 taskId=" + taskId + ", success=" + success);
         if (success) {
-          // 广告观看完成，标记可领取
-          business.markAdCanClaim();
-          ui.showToast("广告观看完成，可以领取金币了！", "success");
-
-          // 追踪事件（通过适配器）
-          const adTaskStatus = business.getAdTaskStatus();
-          adapter.trackEvent("ad_watch_completed", {
-            taskId: "task_watch_ad",
-            reward: adTaskStatus.reward,
-            success: true,
-            platform: adapter.getPlatform(),
-          });
+          if (taskId === "task_checkin") {
+            const video_id = result.video_id ?? result.videoId ?? result.data?.video_id ?? "";
+            logger.log("[活动事件完成] 进入签到看视频领奖 video_id=" + video_id);
+            business.claimCheckinVideoReward(apiOptions, video_id);
+            adapter.trackEvent("checkin_video_completed", { taskId, success: true });
+          } else {
+            logger.log("[活动事件完成] 进入普通看广告领奖");
+            business.markAdCanClaim();
+            ui.showToast("广告观看完成，可以领取金币了！", "success");
+            const adTaskStatus = business.getAdTaskStatus();
+            adapter.trackEvent("ad_watch_completed", {
+              taskId: "task_watch_ad",
+              reward: adTaskStatus.reward,
+              success: true,
+              platform: adapter.getPlatform(),
+            });
+          }
         } else {
           ui.showToast(message || "广告观看未完成", "warning");
-          adapter.trackEvent("ad_watch_failed", {
-            taskId: "task_watch_ad",
+          adapter.trackEvent(taskId === "task_checkin" ? "checkin_video_failed" : "ad_watch_failed", {
+            taskId,
             reason: message || "unknown",
           });
         }
       } else if (eventType === window.ADActivitySDK?.EventType?.RED_PACKET) {
-        console.log("红包雨事件完成:", result);
+        logger.log("红包雨事件完成:", result);
       } else if (eventType === window.ADActivitySDK?.EventType?.SIGN_IN) {
-        console.log("签到事件完成:", result);
+        logger.log("签到事件完成:", result);
       }
     }
 
@@ -385,7 +363,7 @@
 
     // 广告播放错误处理（H5-SDK 协商）
     window.onRewardedAdError = function (error) {
-      console.error("广告播放错误:", error);
+      logger.error("广告播放错误:", error);
       ui.showToast("广告播放失败，请重试", "error");
       adapter.trackEvent("ad_watch_error", {
         taskId: "task_watch_ad",
@@ -397,9 +375,14 @@
     // 绑定 UI 事件
     ui.bindEvents();
 
+    // 未获取到服务端数据前，金币与天数均显示缺省值 0
+    ui.updateAssets(business.getUserAssets());
+    ui.updateTasks({ watchAd: business.getAdTaskStatus() });
+    ui.updateCheckin(null);
+
     // 初始化适配器（会触发 SDK 初始化）
     adapter.init().catch((error) => {
-      console.error("初始化失败", error);
+      logger.error("初始化失败", error);
       ui.showToast("初始化失败，请重试", "error");
     });
   </script>
