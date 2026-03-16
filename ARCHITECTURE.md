@@ -108,10 +108,8 @@ const channelTag = qp.get("channelTag");
 H5 需要知道 SDK 支持哪些事件类型：
 
 ```javascript
-// SDK 事件类型
-window.ADActivitySDK.EventType.REWARD_AD  // 激励视频广告
-window.ADActivitySDK.EventType.RED_PACKET  // 红包雨
-window.ADActivitySDK.EventType.SIGN_IN     // 签到
+// SDK 事件类型（活动中心使用）
+window.ADActivitySDK.EventType.REWARD_AD  // 激励视频广告（每日看视频任务、签到看视频）
 ```
 
 ### 3. 回调协议协商

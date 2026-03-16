@@ -125,7 +125,7 @@ export class GoldCoinsExchange {
         <div class="redeem-history-item">
           <div class="redeem-history-icon">✓</div>
           <div class="redeem-history-main">
-            <div class="redeem-history-title">${escapeHtml(r.description || "兑换")}</div>
+            <div class="redeem-history-title">${escapeHtml(r.description || "Redeem")}</div>
             <div class="redeem-history-subtitle">${escapeHtml(this.formatRecordDate(r.created_at))}</div>
           </div>
           <div class="redeem-history-amount">
@@ -138,7 +138,7 @@ export class GoldCoinsExchange {
       .join("");
 
     if (this.$.viewAllRecordsBtn) {
-      this.$.viewAllRecordsBtn.textContent = showAll ? "收起" : "查看全部";
+      this.$.viewAllRecordsBtn.textContent = showAll ? "Collapse" : "View All";
       this.$.viewAllRecordsBtn.style.visibility = redeemOnly.length > 2 ? "visible" : "hidden";
     }
   }
@@ -216,9 +216,9 @@ export class GoldCoinsExchange {
 
     if (validMobile && hasAmount) {
       const label = this.state.selectedCharge?.amount_text || `¥${this.state.amount}`;
-      this.$.redeemSummary.textContent = `将使用 ${goldCoins} 金币，为 ${this.state.mobile} 充值 ${label}`;
+      this.$.redeemSummary.textContent = `Use ${goldCoins} coins to top up ${label} for ${this.state.mobile}`;
     } else {
-      this.$.redeemSummary.textContent = "请输入手机号并选择充值面额";
+      this.$.redeemSummary.textContent = "Enter mobile number and select amount";
     }
 
     const canRedeem = validMobile && hasAmount && canAfford;
@@ -239,7 +239,7 @@ export class GoldCoinsExchange {
 
     const label = this.state.selectedCharge?.amount_text || `¥${this.state.amount}`;
     const product = {
-      name: `话费充值 ${label}`,
+      name: `Top-up ${label}`,
       icon: "📱",
       points: coins,
       mobile: this.state.mobile,
@@ -250,7 +250,7 @@ export class GoldCoinsExchange {
 
     document.getElementById("previewIcon").textContent = product.icon;
     document.getElementById("previewName").textContent = product.name;
-    document.getElementById("previewPoints").textContent = `需要 ${product.points} 积分`;
+    document.getElementById("previewPoints").textContent = `${product.points} Coins required`;
     document.getElementById("confirmPoints").textContent = product.points;
     document.getElementById("confirmName").textContent = `${product.mobile}`;
 
@@ -276,7 +276,7 @@ export class GoldCoinsExchange {
 
     // 检查金币是否足够
     if (this.userGoldCoins < coins) {
-      this.config.onExchangeFailed("金币不足，无法兑换");
+      this.config.onExchangeFailed("Not enough coins to redeem");
       return;
     }
 
@@ -299,7 +299,7 @@ export class GoldCoinsExchange {
       // 更新兑换按钮状态
       this.updateRedeemState();
     } catch (error) {
-      this.config.onExchangeFailed("兑换失败，请重试");
+      this.config.onExchangeFailed("Redemption failed, please try again");
     }
   }
 
@@ -328,7 +328,7 @@ export class GoldCoinsExchange {
     item.innerHTML = `
       <div class="redeem-history-icon">✓</div>
       <div class="redeem-history-main">
-        <div class="redeem-history-title">话费充值 ${product.mobile}</div>
+        <div class="redeem-history-title">Top-up ${product.mobile}</div>
         <div class="redeem-history-subtitle">${timeStr}</div>
       </div>
       <div class="redeem-history-amount">

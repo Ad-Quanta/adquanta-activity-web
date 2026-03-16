@@ -101,7 +101,7 @@ export class WelfareCenterBusiness {
         return { ok: true, data: res.data };
       }
       logger.warn("[活动接口] 返回码异常\n" + JSON.stringify({ code: res.code, res }, null, 2));
-      throw new Error(res.message || "接口返回异常");
+      throw new Error(res.message || "API returned an error");
     } catch (error) {
       logger.warn("[活动接口] 请求失败，使用 mock 数据", error?.message ?? error);
       await this.loadUserAssets();
@@ -119,7 +119,7 @@ export class WelfareCenterBusiness {
     try {
       const res = await postCheckin(apiOptions);
       if (res.code !== 200) {
-        this.config.onToast(res.message || "签到失败", "error");
+        this.config.onToast(res.message || "Check-in failed", "error");
         return { ok: false };
       }
       const coinFromCheckin = res.data?.coin ?? res.coin ?? 0;
@@ -130,7 +130,7 @@ export class WelfareCenterBusiness {
       return { ok: true, coinFromCheckin, video_coin, multiplier };
     } catch (error) {
       logger.error("Do checkin failed", error);
-      this.config.onToast(error?.message || "签到失败，请重试", "error");
+      this.config.onToast(error?.message || "Check-in failed, please try again", "error");
       return { ok: false };
     }
   }
@@ -147,13 +147,13 @@ export class WelfareCenterBusiness {
       const res = await postCheckinVideo(apiOptions, { video_id });
       const msg = res.data?.message ?? res.message ?? "";
       if (res.code === 200 && res.data?.success) {
-        this.config.onToast(msg || "观看视频成功！获得金币奖励", "success");
+        this.config.onToast(msg || "Video completed! Coins rewarded.", "success");
       } else {
-        this.config.onToast(msg || "领取失败", "error");
+        this.config.onToast(msg || "Claim failed", "error");
       }
     } catch (error) {
       logger.error("Claim checkin video reward failed", error);
-      this.config.onToast(error?.message || "领取失败，请重试", "error");
+      this.config.onToast(error?.message || "Claim failed, please try again", "error");
     }
     await this.loadActivityInfo(apiOptions);
     return { ok: true };
@@ -201,8 +201,8 @@ export class WelfareCenterBusiness {
    */
   async claimAdReward() {
     if (!this.adTaskStatus.canClaim) {
-      this.config.onToast("请先观看完整广告", "warning");
-      return { ok: false, message: "请先观看完整广告" };
+      this.config.onToast("Please watch the full ad first", "warning");
+      return { ok: false, message: "Please watch the full ad first" };
     }
 
     try {
@@ -216,14 +216,14 @@ export class WelfareCenterBusiness {
         // 通知更新
         this.config.onAssetsUpdate(this.userAssets);
         this.config.onTaskUpdate({ watchAd: this.adTaskStatus });
-        this.config.onToast(`成功领取${this.adTaskStatus.reward}金币！`, "success");
+        this.config.onToast(`Successfully claimed ${this.adTaskStatus.reward} coins!`, "success");
       } else {
-        this.config.onToast(response.message || "领取失败", "error");
+        this.config.onToast(response.message || "Claim failed", "error");
       }
       return response;
     } catch (error) {
       logger.error("Claim reward failed", error);
-      this.config.onToast("领取失败，请重试", "error");
+      this.config.onToast("Claim failed, please try again", "error");
       throw error;
     }
   }
@@ -304,10 +304,10 @@ export class WelfareCenterBusiness {
   async mockDoCheckin() {
     await new Promise((resolve) => setTimeout(resolve, 300));
     if (!this.checkinDetail || !Array.isArray(this.checkinDetail.days)) {
-      return { ok: false, message: "无签到数据" };
+      return { ok: false, message: "No check-in data" };
     }
     const todayIdx = this.checkinDetail.days.findIndex((d) => d.current === true);
-    if (todayIdx < 0) return { ok: false, message: "今日已签到或未到签到日" };
+    if (todayIdx < 0) return { ok: false, message: "Already checked in today or not check-in day" };
     this.checkinDetail.days[todayIdx].received = true;
     this.config.onCheckinUpdate(this.checkinDetail);
     const today = this.checkinDetail.days[todayIdx];
@@ -318,7 +318,7 @@ export class WelfareCenterBusiness {
     await new Promise((resolve) => setTimeout(resolve, 500));
     return {
       ok: true,
-      message: "领取成功",
+      message: "Claim successful",
     };
   }
 }

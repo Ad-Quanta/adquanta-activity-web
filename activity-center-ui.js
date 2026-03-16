@@ -33,7 +33,6 @@ export class WelfareCenterUI {
       onClaimAdClick: config.onClaimAdClick || (() => {}),
       onAdCloseClick: config.onAdCloseClick || (() => {}),
       onWithdrawClick: config.onWithdrawClick || (() => {}),
-      onRedPacketClick: config.onRedPacketClick || (() => {}),
       onSigninClick: config.onSigninClick || (() => {}),
       onSigninWatchVideoClick: config.onSigninWatchVideoClick || (() => {}),
       ...config,
@@ -70,7 +69,7 @@ export class WelfareCenterUI {
         this.elements.adRewardAmount.textContent = reward;
       }
       if (this.elements.adTaskDesc) {
-        this.elements.adTaskDesc.textContent = `本次得${reward}金币,已完成${completed}次`;
+        this.elements.adTaskDesc.textContent = `Earn ${reward} coins per video, ${completed} completed`;
       }
       const earnedText = document.getElementById("ad-earned-text");
       if (earnedText) {
@@ -86,10 +85,10 @@ export class WelfareCenterUI {
       }
       if (this.elements.btnWatchAd) {
         if (task.canClaim) {
-          this.elements.btnWatchAd.textContent = "领取";
+          this.elements.btnWatchAd.textContent = "Claim";
           this.elements.btnWatchAd.classList.add("can-claim");
         } else {
-          this.elements.btnWatchAd.textContent = "去完成";
+          this.elements.btnWatchAd.textContent = "Watch Now";
           this.elements.btnWatchAd.classList.remove("can-claim");
         }
       }
@@ -108,9 +107,9 @@ export class WelfareCenterUI {
     }
 
     if (name && email) {
-      this.elements.userGreeting.textContent = `${name}（${email}），欢迎你`;
+      this.elements.userGreeting.textContent = `Welcome, ${name} (${email})`;
     } else {
-      this.elements.userGreeting.textContent = `${name || email}，欢迎你`;
+      this.elements.userGreeting.textContent = `Welcome, ${name || email}`;
     }
   }
 
@@ -147,7 +146,7 @@ export class WelfareCenterUI {
       this.elements.adProgress.style.width = "0%";
     }
     if (this.elements.adProgressText) {
-      this.elements.adProgressText.textContent = "广告播放中... 0%";
+      this.elements.adProgressText.textContent = "Playing ad... 0%";
     }
     this.adWatchProgress = 0;
   }
@@ -162,9 +161,9 @@ export class WelfareCenterUI {
     }
     if (this.elements.adProgressText) {
       if (progress >= 100) {
-        this.elements.adProgressText.textContent = "广告播放完成！";
+        this.elements.adProgressText.textContent = "Ad completed!";
       } else {
-        this.elements.adProgressText.textContent = `广告播放中... ${progress}%`;
+        this.elements.adProgressText.textContent = `Playing ad... ${progress}%`;
       }
     }
   }
@@ -283,7 +282,7 @@ export class WelfareCenterUI {
       const canCheckin = true;
       signinBtn.disabled = !canCheckin;
       const span = signinBtn.querySelector("span");
-      if (span) span.textContent = canCheckin ? "Check-in Now" : (today && today.day <= continuousDays ? "已签到" : "Check-in Now");
+      if (span) span.textContent = canCheckin ? "Check-in Now" : (today && today.day <= continuousDays ? "Checked in" : "Check-in Now");
     }
   }
 
@@ -307,7 +306,7 @@ export class WelfareCenterUI {
     if (this.elements.adCloseBtn) {
       this.elements.adCloseBtn.addEventListener("click", () => {
         if (this.adWatchProgress < 100) {
-          if (confirm("确定要关闭广告吗？未观看完整广告无法领取金币。")) {
+          if (confirm("Close ad? You won't get coins if the ad isn't finished.")) {
             this.config.onAdCloseClick();
           }
         } else {
@@ -316,17 +315,10 @@ export class WelfareCenterUI {
       });
     }
 
-    // 提现按钮
+    // 提现/兑换按钮
     if (this.elements.withdrawBtn) {
       this.elements.withdrawBtn.addEventListener("click", () => {
         this.config.onWithdrawClick();
-      });
-    }
-
-    // 红包雨按钮
-    if (this.elements.btnRedPacket) {
-      this.elements.btnRedPacket.addEventListener("click", () => {
-        this.config.onRedPacketClick();
       });
     }
 
