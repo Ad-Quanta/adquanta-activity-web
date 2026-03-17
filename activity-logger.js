@@ -13,9 +13,9 @@ function formatMessage(args) {
 export function log(...args) {
   const msg = formatMessage(args);
   console.log(msg);
-  if (typeof window !== "undefined" && window.ADActivitySDK && typeof window.ADActivitySDK.log === "function") {
+  if (typeof window !== "undefined" && window.ActivityBridgeHelper && typeof window.ActivityBridgeHelper.log === "function") {
     try {
-      window.ADActivitySDK.log("log", msg);
+      window.ActivityBridgeHelper.log("log", msg);
     } catch (_) {}
   }
 }
@@ -23,9 +23,9 @@ export function log(...args) {
 export function warn(...args) {
   const msg = formatMessage(args);
   console.warn(msg);
-  if (typeof window !== "undefined" && window.ADActivitySDK && typeof window.ADActivitySDK.log === "function") {
+  if (typeof window !== "undefined" && window.ActivityBridgeHelper && typeof window.ActivityBridgeHelper.log === "function") {
     try {
-      window.ADActivitySDK.log("warn", msg);
+      window.ActivityBridgeHelper.log("warn", msg);
     } catch (_) {}
   }
 }
@@ -33,9 +33,9 @@ export function warn(...args) {
 export function error(...args) {
   const msg = formatMessage(args);
   console.error(msg);
-  if (typeof window !== "undefined" && window.ADActivitySDK && typeof window.ADActivitySDK.log === "function") {
+  if (typeof window !== "undefined" && window.ActivityBridgeHelper && typeof window.ActivityBridgeHelper.log === "function") {
     try {
-      window.ADActivitySDK.log("error", msg);
+      window.ActivityBridgeHelper.log("error", msg);
     } catch (_) {}
   }
 }

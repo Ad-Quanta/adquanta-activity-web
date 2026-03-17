@@ -322,7 +322,7 @@
       const message = result.message || "";
 
       // 根据事件类型处理（H5 需要知道如何处理这些事件类型）
-      if (eventType === window.ADActivitySDK?.EventType?.REWARD_AD) {
+      if (eventType === window.ActivityBridgeHelper?.EventType?.REWARD_AD) {
         // 回调里若没有 taskId，用「上次触发时」保存的 taskId 兜底（Native 可能不回传）
         const taskId = result.taskId || result.task_id || lastRewardAdTaskId;
         logger.log("[活动事件完成] reward_ad 分支 taskId=" + taskId + ", success=" + success);

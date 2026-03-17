@@ -2,7 +2,7 @@
 
 本仓库为 **AdQuanta 活动平台** 的 H5 前端，包含活动首页、活动中心、金币兑换等页面。
 
-- 技术栈：**HTML + JS + CSS**，通过 `ADActivitySDK` 与 Native 及活动后端协作
+- 技术栈：**HTML + JS + CSS**，通过 `ActivityBridgeHelper` 与 Native 及活动后端协作
 - 页面加载后执行 JS，完成：初始化（URL 参数 `code`/`token`）、事件上报、任务与资产展示
 
 ## 页面列表

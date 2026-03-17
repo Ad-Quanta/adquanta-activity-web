@@ -22,16 +22,16 @@ export class WelfareCenterAdapter {
   }
 
   /**
-   * 初始化 SDK（等待原生 SDK 注入或加载 Web SDK）
+   * 初始化 SDK（等待原生注入）
    */
   async init() {
-    // 等待 SDK 加载
+    // 等待原生 SDK 注入
     await this.waitForSDK();
 
     // 初始化活动会话
-    if (window.ADActivitySDK && window.ADActivitySDK.initActivity) {
+    if (window.ActivityBridgeHelper && window.ActivityBridgeHelper.initActivity) {
       try {
-        const session = await window.ADActivitySDK.initActivity(
+        const session = await window.ActivityBridgeHelper.initActivity(
           this.config.activityId,
           this.config.code,
           this.config.token,
@@ -40,7 +40,7 @@ export class WelfareCenterAdapter {
         logger.log("活动会话初始化成功:", session);
 
         // 追踪页面浏览事件
-        await window.ADActivitySDK.trackEvent("page_view", {
+        await window.ActivityBridgeHelper.trackEvent("page_view", {
           url: window.location.href,
         });
 
@@ -52,7 +52,7 @@ export class WelfareCenterAdapter {
         throw error;
       }
     } else {
-      logger.warn("ADActivitySDK 不可用，使用降级方案");
+      logger.error("ActivityBridgeHelper 未注入，请确保原生 SDK 已正确加载");
       this.isSDKReady = false;
       this.config.onSDKReady(null);
       return null;
@@ -60,40 +60,35 @@ export class WelfareCenterAdapter {
   }
 
   /**
-   * 等待 SDK 加载完成
+   * 等待 SDK 加载完成（原生注入）
    */
   async waitForSDK() {
     return new Promise((resolve) => {
-      // 检查 SDK 是否已加载
+      // 检查 SDK 是否已注入
       if (
-        typeof window.ADActivitySDK !== "undefined" &&
-        window.ADActivitySDK.isAvailable &&
-        window.ADActivitySDK.isAvailable()
+        typeof window.ActivityBridgeHelper !== "undefined" &&
+        window.ActivityBridgeHelper.isAvailable &&
+        window.ActivityBridgeHelper.isAvailable()
       ) {
         resolve();
         return;
       }
 
-      // 尝试加载 Web SDK（降级方案）
-      this.loadWebSDK();
-
-      // 等待最多 3 秒
+      // 等待原生注入，最多 3 秒
       let checkCount = 0;
       const checkInterval = setInterval(() => {
         checkCount++;
         if (
-          typeof window.ADActivitySDK !== "undefined" &&
-          window.ADActivitySDK.isAvailable &&
-          window.ADActivitySDK.isAvailable()
+          typeof window.ActivityBridgeHelper !== "undefined" &&
+          window.ActivityBridgeHelper.isAvailable &&
+          window.ActivityBridgeHelper.isAvailable()
         ) {
           clearInterval(checkInterval);
           resolve();
         } else if (checkCount >= 30) {
           // 3秒超时
           clearInterval(checkInterval);
-          logger.warn(
-            "ADActivitySDK 加载超时，可能原生未注入或 CDN 加载失败"
-          );
+          logger.warn("ActivityBridgeHelper 加载超时，请确保原生 SDK 已正确注入");
           resolve(); // 仍然继续，不阻塞页面初始化
         }
       }, 100);
@@ -101,50 +96,16 @@ export class WelfareCenterAdapter {
   }
 
   /**
-   * 加载 Web SDK（降级方案）
-   */
-  loadWebSDK() {
-    if (typeof window.ADActivitySDK !== "undefined") {
-      return;
-    }
-
-    // 尝试从本地加载
-    const script = document.createElement("script");
-    script.src = "./ad_activity_sdk_for_webview.js";
-    script.onerror = () => {
-      logger.warn("无法从本地加载 Web SDK，尝试从 CDN 加载");
-      // 从 CDN 加载
-      const cdnScript = document.createElement("script");
-      cdnScript.src = "https://your-cdn.com/js/ad_activity_sdk_for_webview.js";
-      cdnScript.onerror = () => {
-        logger.warn(
-          "无法从 CDN 加载 Web SDK，请确保原生 SDK 已注入或提供正确的 CDN 地址"
-        );
-      };
-      document.head.appendChild(cdnScript);
-    };
-    script.onload = () => {
-      logger.log("ADActivitySDK: Web SDK 辅助库已从本地加载");
-    };
-    document.head.appendChild(script);
-  }
-
-  /**
    * 设置事件完成回调
    */
   setupEventCallback() {
     if (
-      typeof window.ADActivitySDK !== "undefined" &&
-      typeof window.ADActivitySDK.onActivityEventCompleted === "function"
+      typeof window.ActivityBridgeHelper !== "undefined" &&
+      typeof window.ActivityBridgeHelper.onActivityEventCompleted === "function"
     ) {
-      window.ADActivitySDK.onActivityEventCompleted((result) => {
+      window.ActivityBridgeHelper.onActivityEventCompleted((result) => {
         this.config.onEventCompleted(result);
       });
-    } else {
-      // 降级方案：直接监听 window.onActivityEventCompleted
-      window.onActivityEventCompleted = (result) => {
-        this.config.onEventCompleted(result);
-      };
     }
   }
 
@@ -152,8 +113,8 @@ export class WelfareCenterAdapter {
    * 触发激励视频广告
    */
   async triggerRewardAd(eventData = {}) {
-    if (!window.ADActivitySDK || !window.ADActivitySDK.triggerEvent) {
-      throw new Error("ADActivitySDK 不可用");
+    if (!window.ActivityBridgeHelper?.triggerEvent) {
+      throw new Error("ActivityBridgeHelper 未注入");
     }
 
     const defaultEventData = {
@@ -161,8 +122,8 @@ export class WelfareCenterAdapter {
       ...eventData,
     };
 
-    return window.ADActivitySDK.triggerEvent(
-      window.ADActivitySDK.EventType.REWARD_AD,
+    return window.ActivityBridgeHelper.triggerEvent(
+      window.ActivityBridgeHelper.EventType.REWARD_AD,
       defaultEventData
     );
   }
@@ -171,38 +132,32 @@ export class WelfareCenterAdapter {
    * 追踪事件
    */
   async trackEvent(eventType, eventData = {}) {
-    if (!window.ADActivitySDK || !window.ADActivitySDK.trackEvent) {
-      logger.warn("ADActivitySDK.trackEvent 不可用");
+    if (!window.ActivityBridgeHelper?.trackEvent) {
+      logger.warn("ActivityBridgeHelper 未注入，无法追踪事件");
       return;
     }
 
-    return window.ADActivitySDK.trackEvent(eventType, eventData);
+    return window.ActivityBridgeHelper.trackEvent(eventType, eventData);
   }
 
   /**
    * 获取平台信息
    */
   getPlatform() {
-    if (window.ADActivitySDK && window.ADActivitySDK.getPlatform) {
-      return window.ADActivitySDK.getPlatform();
-    }
-    return "unknown";
+    return window.ActivityBridgeHelper?.getPlatform?.() || "unknown";
   }
 
   /**
    * 获取 SDK 版本
    */
   getVersion() {
-    if (window.ADActivitySDK && window.ADActivitySDK.getVersion) {
-      return window.ADActivitySDK.getVersion();
-    }
-    return "unknown";
+    return window.ActivityBridgeHelper?.getVersion?.() || "unknown";
   }
 
   /**
    * 检查 SDK 是否可用
    */
   isAvailable() {
-    return this.isSDKReady && window.ADActivitySDK && window.ADActivitySDK.isAvailable && window.ADActivitySDK.isAvailable();
+    return this.isSDKReady && window.ActivityBridgeHelper?.isAvailable?.();
   }
 }
