@@ -28,6 +28,9 @@ export class WelfareCenterAdapter {
     // 等待原生 SDK 注入
     await this.waitForSDK();
 
+    // SDK 就绪后再次确保事件回调已注册（避免注入时序导致回调未挂上）
+    this.setupEventCallback();
+
     // 初始化活动会话
     if (window.ActivityBridgeHelper && window.ActivityBridgeHelper.initActivity) {
       try {
@@ -37,7 +40,7 @@ export class WelfareCenterAdapter {
           this.config.token,
           this.config.channelTag
         );
-        logger.log("活动会话初始化成功:", session);
+        logger.log("SDK init 成功:", session);
 
         // 追踪页面浏览事件
         await window.ActivityBridgeHelper.trackEvent("page_view", {
@@ -110,9 +113,33 @@ export class WelfareCenterAdapter {
   }
 
   /**
-   * 触发激励视频广告
+   * 触发插页式激励广告（task_checkin 签到看广告）
+   * 对应 Native: RewardedInterstitialAd，需要用户看完才算完成。
    */
   async triggerRewardAd(eventData = {}) {
+    if (!window.ActivityBridgeHelper?.triggerEvent) {
+      throw new Error("ActivityBridgeHelper 未注入");
+    }
+
+    const defaultEventData = {
+      taskId: "task_checkin",
+      ...eventData,
+    };
+
+    const payload = JSON.stringify(defaultEventData);
+    logger.log("[SDK] triggerRewardAd payload:", defaultEventData);
+
+    return window.ActivityBridgeHelper.triggerEvent(
+      window.ActivityBridgeHelper.EventType.REWARD_AD,
+      payload
+    );
+  }
+
+  /**
+   * 触发插页式广告（task_watch_ad 每日看视频广告）
+   * 对应 Native: InterstitialAd，广告关闭即视为完成。
+   */
+  async triggerInterstitialAd(eventData = {}) {
     if (!window.ActivityBridgeHelper?.triggerEvent) {
       throw new Error("ActivityBridgeHelper 未注入");
     }
@@ -122,9 +149,12 @@ export class WelfareCenterAdapter {
       ...eventData,
     };
 
+    const payload = JSON.stringify(defaultEventData);
+    logger.log("[SDK] triggerInterstitialAd payload:", defaultEventData);
+
     return window.ActivityBridgeHelper.triggerEvent(
-      window.ActivityBridgeHelper.EventType.REWARD_AD,
-      defaultEventData
+      window.ActivityBridgeHelper.EventType.INTERSTITIAL_AD,
+      payload
     );
   }
 

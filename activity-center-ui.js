@@ -21,6 +21,9 @@ export class WelfareCenterUI {
       withdrawBtn: document.getElementById("exchangeBtn"),
       signinTimerBtn: document.getElementById("signin-timer-btn"),
       signinDialog: document.getElementById("signinDialog"),
+      signinDialogCelebration: document.getElementById("signinDialogCelebration"),
+      signinDialogTitle: document.getElementById("signinDialogTitle"),
+      signinDialogBaseCoinsWrap: document.getElementById("signinDialogBaseCoinsWrap"),
       signinDialogBaseCoins: document.getElementById("signinDialogBaseCoins"),
       signinDialogVideoCoin: document.getElementById("signinDialogVideoCoin"),
       signinDialogMultiplier: document.getElementById("signinDialogMultiplier"),
@@ -64,6 +67,7 @@ export class WelfareCenterUI {
       const reward = task.reward ?? 0;
       const earned = completed * reward;
       const total = limit * reward;
+      const isAllDone = limit !== 0 && completed >= limit;
 
       if (this.elements.adRewardAmount) {
         this.elements.adRewardAmount.textContent = reward;
@@ -84,12 +88,15 @@ export class WelfareCenterUI {
         progressFill.style.width = limit > 0 ? `${Math.min(100, (100 * completed) / limit)}%` : "0%";
       }
       if (this.elements.btnWatchAd) {
-        if (task.canClaim) {
-          this.elements.btnWatchAd.textContent = "Claim";
-          this.elements.btnWatchAd.classList.add("can-claim");
+        this.elements.btnWatchAd.classList.remove("can-claim");
+        if (isAllDone) {
+          this.elements.btnWatchAd.textContent = "Completed";
+          this.elements.btnWatchAd.disabled = true;
+          this.elements.btnWatchAd.classList.add("is-completed");
         } else {
           this.elements.btnWatchAd.textContent = "Watch Now";
-          this.elements.btnWatchAd.classList.remove("can-claim");
+          this.elements.btnWatchAd.disabled = false;
+          this.elements.btnWatchAd.classList.remove("is-completed");
         }
       }
     }
@@ -183,14 +190,31 @@ export class WelfareCenterUI {
    * 1. + N Coins：checkin 接口返回的 coinFromCheckin
    * 2. get N extra coins：info 今日签到项的 video_coin
    * 3. Get Nx Extra Coins：今日 video_coin/coin 取整倍数
-   * @param {{ coinFromCheckin?: number, video_coin?: number, multiplier?: number, coin?: number }} reward
+   * @param {{ coinFromCheckin?: number, video_coin?: number, multiplier?: number, coin?: number, compactMode?: boolean, alreadyChecked?: boolean }} reward
    */
   showSigninDialog(reward) {
     const coinFromCheckin = reward?.coinFromCheckin ?? reward?.coin ?? 0;
     const video_coin = reward?.video_coin ?? 0;
     const multiplier = reward?.multiplier ?? 0;
+    const alreadyChecked = !!reward?.alreadyChecked;
+
+    if (this.elements.signinDialogCelebration) {
+      this.elements.signinDialogCelebration.style.display = "";
+    }
+    if (this.elements.signinDialogTitle) {
+      this.elements.signinDialogTitle.style.display = "";
+      this.elements.signinDialogTitle.classList.toggle("signin-dialog-title--muted", alreadyChecked);
+      this.elements.signinDialogTitle.textContent = alreadyChecked ? "You have checked in" : "Check-in Successful!";
+    }
+    if (this.elements.signinDialogBaseCoinsWrap) {
+      this.elements.signinDialogBaseCoinsWrap.style.display = "";
+    }
+
     if (this.elements.signinDialogBaseCoins) {
-      this.elements.signinDialogBaseCoins.textContent = `+${coinFromCheckin} Coins`;
+      this.elements.signinDialogBaseCoins.textContent = alreadyChecked
+        ? `You have earned ${coinFromCheckin} Coins`
+        : `+${coinFromCheckin} Coins`;
+      this.elements.signinDialogBaseCoins.classList.toggle("signin-dialog-base-coins--muted", alreadyChecked);
     }
     if (this.elements.signinDialogVideoCoin) {
       this.elements.signinDialogVideoCoin.textContent = `${video_coin}`;
@@ -278,11 +302,13 @@ export class WelfareCenterUI {
     const signinBtn = this.elements.signinTimerBtn;
     if (signinBtn) {
       const today = daysList.find((d) => d.current === true);
-      // [联调] 已签到时也允许点击，便于测试签到接口；上线前改回：const canCheckin = today && today.day > continuousDays;
-      const canCheckin = true;
+      const received = !!today?.received;
+      const videoReceived = !!today?.video_received;
+      const allCompleted = received && videoReceived;
+      const canCheckin = !allCompleted;
       signinBtn.disabled = !canCheckin;
       const span = signinBtn.querySelector("span");
-      if (span) span.textContent = canCheckin ? "Check-in Now" : (today && today.day <= continuousDays ? "Checked in" : "Check-in Now");
+      if (span) span.textContent = canCheckin ? "Check-in Now" : "All check-in tasks completed";
     }
   }
 
@@ -293,12 +319,8 @@ export class WelfareCenterUI {
     // 看广告/领取按钮
     if (this.elements.btnWatchAd) {
       this.elements.btnWatchAd.addEventListener("click", () => {
-        const isCanClaim = this.elements.btnWatchAd.classList.contains("can-claim");
-        if (isCanClaim) {
-          this.config.onClaimAdClick();
-        } else {
-          this.config.onWatchAdClick();
-        }
+        if (this.elements.btnWatchAd.disabled) return;
+        this.config.onWatchAdClick();
       });
     }
 
@@ -339,9 +361,23 @@ export class WelfareCenterUI {
     // 签到成功弹框 - 看视频获取额外金币
     if (this.elements.signinDialogWatchBtn) {
       this.elements.signinDialogWatchBtn.addEventListener("click", () => {
+        if (this.elements.signinDialogWatchBtn.disabled) return;
         this.hideSigninDialog();
         this.config.onSigninWatchVideoClick();
       });
+    }
+  }
+
+  /**
+   * 设置签到弹框“看视频”按钮 loading/禁用状态（防连点）
+   */
+  setSigninWatchLoading(loading) {
+    if (!this.elements.signinDialogWatchBtn) return;
+    this.elements.signinDialogWatchBtn.disabled = !!loading;
+    if (loading) {
+      this.elements.signinDialogWatchBtn.classList.add("tc-signin-watch-loading");
+    } else {
+      this.elements.signinDialogWatchBtn.classList.remove("tc-signin-watch-loading");
     }
   }
 }

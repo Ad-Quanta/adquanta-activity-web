@@ -9,6 +9,19 @@
 </head>
 
 <body>
+  <!-- Auth failed dialog (shown when code/token missing) -->
+  <div id="authFailedModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;padding:20px;">
+    <div style="width:100%;max-width:360px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,0.25);">
+      <div style="padding:18px 18px 10px;font-weight:800;font-size:16px;color:#111827;">Authorization Failed</div>
+      <div style="padding:0 18px 18px;color:#4b5563;font-size:14px;line-height:1.5;">
+        Missing token. Please reopen this page from the app and try again.
+      </div>
+      <div style="padding:0 18px 18px;display:flex;gap:10px;">
+        <button id="authFailedOk" type="button" style="flex:1;height:44px;border:none;border-radius:999px;background:linear-gradient(135deg,#ec5b13,#f97316);color:#fff;font-weight:800;cursor:pointer;">OK</button>
+      </div>
+    </div>
+  </div>
+
   <div class="redeem-root">
     <!-- 顶部导航 -->
     <header class="redeem-header">
@@ -43,41 +56,31 @@
         <div class="redeem-field">
           <label class="redeem-label" for="inputMobile">Mobile Number</label>
           <div class="redeem-input-wrapper">
-            <span class="redeem-input-prefix">+86</span>
+            <button type="button" class="redeem-countrycode-btn" id="countryCodeBtn" aria-label="Country code" disabled>+91</button>
             <input
               id="inputMobile"
               class="redeem-input"
               type="tel"
-              maxlength="11"
-              placeholder="Enter 11-digit number"
+              inputmode="numeric"
+              maxlength="15"
+              placeholder="Enter phone number"
             />
           </div>
         </div>
 
-        <!-- Operator -->
-        <div class="redeem-field">
+        <!-- Operator (hidden until charges loaded) -->
+        <div class="redeem-field" id="operatorSection" style="display:none;">
           <label class="redeem-label">Operator</label>
-          <div class="redeem-operator-grid" id="operatorGrid">
-            <button class="redeem-operator-btn redeem-operator-btn--active" data-operator="China Mobile">
-              China Mobile
-            </button>
-            <button class="redeem-operator-btn" data-operator="China Unicom">
-              China Unicom
-            </button>
-            <button class="redeem-operator-btn" data-operator="China Telecom">
-              China Telecom
-            </button>
+          <div class="redeem-operator-single">
+            <span class="redeem-operator-pill" id="operatorLabel">-</span>
           </div>
         </div>
 
-        <!-- Amount -->
-        <div class="redeem-field">
+        <!-- Amount (hidden until charges loaded) -->
+        <div class="redeem-field" id="amountSection" style="display:none;">
           <label class="redeem-label">Select Amount</label>
           <div class="redeem-amount-grid" id="amountGrid">
-            <button class="redeem-amount-btn" data-amount="10">¥10</button>
-            <button class="redeem-amount-btn" data-amount="30">¥30</button>
-            <button class="redeem-amount-btn" data-amount="50">¥50</button>
-            <button class="redeem-amount-btn" data-amount="100">¥100</button>
+            <!-- Options will be rendered after /charges returns -->
           </div>
         </div>
 
@@ -99,7 +102,7 @@
           <button type="button" class="redeem-history-view-all" id="viewAllRecords">View All</button>
         </div>
         <div class="redeem-history-list" id="historyList">
-          <!-- 历史记录由 JS 动态插入；可预置 0 或少量 mock 数据 -->
+          <!-- 历史记录由 JS 动态插入 -->
         </div>
       </section>
     </main>
@@ -132,14 +135,88 @@
 
   <div class="toast" id="toast" style="display: none;"></div>
 
+  <!-- Country code picker -->
+  <div class="modal" id="countryCodeModal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Select country code</h2>
+        <button class="modal-close" id="countryCodeCloseBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="redeem-field" style="margin-top:0;">
+          <label class="redeem-label" for="countryCodeSearch">Search</label>
+          <div class="redeem-input-wrapper">
+            <input id="countryCodeSearch" class="redeem-input" type="text" placeholder="Search country or code (e.g. China, +86)" />
+          </div>
+        </div>
+        <div id="countryCodeList" style="margin-top:12px;max-height:320px;overflow:auto;"></div>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { GoldCoinsExchange } from "./gold-coins-exchange.js";
+    import { postAuthToken } from "./activity-api.js";
+    import * as logger from "./activity-logger.js";
 
     const qp = new URLSearchParams(window.location.search);
+    const tokenFromUrl = qp.get("token") || "";
+    const code = qp.get("code") || "";
+    const activityId = qp.get("activity_id") || "";
+
+    function showAuthFailedDialog() {
+      const modal = document.getElementById("authFailedModal");
+      if (modal) modal.style.display = "flex";
+      const ok = document.getElementById("authFailedOk");
+      if (ok) ok.addEventListener("click", () => {}, { once: true });
+    }
+
+    const baseUrl = "http://10.0.33.63:8080";
+    let token = "";
+
+    // Try reuse token from activity center (code may be one-time)
+    try {
+      const cachedRaw = sessionStorage.getItem("activity_auth_cache_v1") || "";
+      const cached = cachedRaw ? JSON.parse(cachedRaw) : null;
+      const expiresAt = Number(cached?.expiresAt || 0); // epoch seconds
+      const nowSec = Math.floor(Date.now() / 1000);
+      const stillValid = !!cached?.token && (!expiresAt || nowSec < (expiresAt - 30));
+      if (stillValid) {
+        token = String(cached.token || "");
+      }
+    } catch (_) {}
+
+    try {
+      if (!token) {
+        // Prefer URL token; if missing, fallback to code exchange
+        token = tokenFromUrl ? String(tokenFromUrl) : "";
+      }
+
+      if (!token) {
+        if (!code) {
+          showAuthFailedDialog();
+          throw new Error("Missing token and code in URL");
+        }
+        const authRes = await postAuthToken({ baseUrl }, { code });
+        token = authRes?.data?.access_token || "";
+      }
+    } catch (e) {
+      showAuthFailedDialog();
+      throw e;
+    }
+    if (!token) {
+      showAuthFailedDialog();
+      throw new Error("Empty access_token");
+    }
+
     const apiOptions = {
-      baseUrl: qp.get("apiBaseUrl") || "http://10.0.33.63:8080",
-      app_id: qp.get("app_id") || "asdfjjshdsafj23h2",
-      app_secret: qp.get("app_secret") || "qerqwershdsafj23h2sdfaasdf",
+      baseUrl,
+      app_id: "asdfjjshdsafj23h2",
+      app_secret: "qerqwershdsafj23h2sdfaasdf",
+      token,
+      // keep for potential future usage/debugging
+      activityId,
+      code,
     };
 
     const exchange = new GoldCoinsExchange({
@@ -154,7 +231,12 @@
 
     // 返回按钮
     document.getElementById("backBtn").addEventListener("click", () => {
-      window.history.back();
+      // Prefer returning with the same token, so activity-center doesn't need to re-exchange a one-time code.
+      if (token) {
+        window.location.href = `./activity-center.html?token=${encodeURIComponent(token)}&activity_id=${encodeURIComponent(activityId || "")}`;
+      } else {
+        window.history.back();
+      }
     });
 
     // 显示 Toast

@@ -1,4 +1,4 @@
-import { getActivityInfo, getCharges } from "./activity-api.js";
+import { getActivityInfo, getActivityRecords, getCharges, postChargeRedeem } from "./activity-api.js";
 import * as logger from "./activity-logger.js";
 
 function escapeHtml(s) {
@@ -9,6 +9,275 @@ function escapeHtml(s) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// Full country calling code list (name + dial code)
+// Data source: common public ISO calling code datasets (embedded for offline use)
+const COUNTRY_CALLING_CODES = [
+  { name: "Afghanistan", dial: "+93" },
+  { name: "Albania", dial: "+355" },
+  { name: "Algeria", dial: "+213" },
+  { name: "American Samoa", dial: "+1-684" },
+  { name: "Andorra", dial: "+376" },
+  { name: "Angola", dial: "+244" },
+  { name: "Anguilla", dial: "+1-264" },
+  { name: "Antarctica", dial: "+672" },
+  { name: "Antigua and Barbuda", dial: "+1-268" },
+  { name: "Argentina", dial: "+54" },
+  { name: "Armenia", dial: "+374" },
+  { name: "Aruba", dial: "+297" },
+  { name: "Australia", dial: "+61" },
+  { name: "Austria", dial: "+43" },
+  { name: "Azerbaijan", dial: "+994" },
+  { name: "Bahamas", dial: "+1-242" },
+  { name: "Bahrain", dial: "+973" },
+  { name: "Bangladesh", dial: "+880" },
+  { name: "Barbados", dial: "+1-246" },
+  { name: "Belarus", dial: "+375" },
+  { name: "Belgium", dial: "+32" },
+  { name: "Belize", dial: "+501" },
+  { name: "Benin", dial: "+229" },
+  { name: "Bermuda", dial: "+1-441" },
+  { name: "Bhutan", dial: "+975" },
+  { name: "Bolivia", dial: "+591" },
+  { name: "Bosnia and Herzegovina", dial: "+387" },
+  { name: "Botswana", dial: "+267" },
+  { name: "Brazil", dial: "+55" },
+  { name: "British Indian Ocean Territory", dial: "+246" },
+  { name: "British Virgin Islands", dial: "+1-284" },
+  { name: "Brunei", dial: "+673" },
+  { name: "Bulgaria", dial: "+359" },
+  { name: "Burkina Faso", dial: "+226" },
+  { name: "Burundi", dial: "+257" },
+  { name: "Cambodia", dial: "+855" },
+  { name: "Cameroon", dial: "+237" },
+  { name: "Canada", dial: "+1" },
+  { name: "Cape Verde", dial: "+238" },
+  { name: "Cayman Islands", dial: "+1-345" },
+  { name: "Central African Republic", dial: "+236" },
+  { name: "Chad", dial: "+235" },
+  { name: "Chile", dial: "+56" },
+  { name: "China", dial: "+86" },
+  { name: "Christmas Island", dial: "+61" },
+  { name: "Cocos (Keeling) Islands", dial: "+61" },
+  { name: "Colombia", dial: "+57" },
+  { name: "Comoros", dial: "+269" },
+  { name: "Congo (DRC)", dial: "+243" },
+  { name: "Congo (Republic)", dial: "+242" },
+  { name: "Cook Islands", dial: "+682" },
+  { name: "Costa Rica", dial: "+506" },
+  { name: "Cote d’Ivoire", dial: "+225" },
+  { name: "Croatia", dial: "+385" },
+  { name: "Cuba", dial: "+53" },
+  { name: "Curacao", dial: "+599" },
+  { name: "Cyprus", dial: "+357" },
+  { name: "Czechia", dial: "+420" },
+  { name: "Denmark", dial: "+45" },
+  { name: "Djibouti", dial: "+253" },
+  { name: "Dominica", dial: "+1-767" },
+  { name: "Dominican Republic", dial: "+1-809" },
+  { name: "Dominican Republic", dial: "+1-829" },
+  { name: "Dominican Republic", dial: "+1-849" },
+  { name: "Ecuador", dial: "+593" },
+  { name: "Egypt", dial: "+20" },
+  { name: "El Salvador", dial: "+503" },
+  { name: "Equatorial Guinea", dial: "+240" },
+  { name: "Eritrea", dial: "+291" },
+  { name: "Estonia", dial: "+372" },
+  { name: "Eswatini", dial: "+268" },
+  { name: "Ethiopia", dial: "+251" },
+  { name: "Falkland Islands", dial: "+500" },
+  { name: "Faroe Islands", dial: "+298" },
+  { name: "Fiji", dial: "+679" },
+  { name: "Finland", dial: "+358" },
+  { name: "France", dial: "+33" },
+  { name: "French Guiana", dial: "+594" },
+  { name: "French Polynesia", dial: "+689" },
+  { name: "Gabon", dial: "+241" },
+  { name: "Gambia", dial: "+220" },
+  { name: "Georgia", dial: "+995" },
+  { name: "Germany", dial: "+49" },
+  { name: "Ghana", dial: "+233" },
+  { name: "Gibraltar", dial: "+350" },
+  { name: "Greece", dial: "+30" },
+  { name: "Greenland", dial: "+299" },
+  { name: "Grenada", dial: "+1-473" },
+  { name: "Guadeloupe", dial: "+590" },
+  { name: "Guam", dial: "+1-671" },
+  { name: "Guatemala", dial: "+502" },
+  { name: "Guernsey", dial: "+44-1481" },
+  { name: "Guinea", dial: "+224" },
+  { name: "Guinea-Bissau", dial: "+245" },
+  { name: "Guyana", dial: "+592" },
+  { name: "Haiti", dial: "+509" },
+  { name: "Honduras", dial: "+504" },
+  { name: "Hong Kong", dial: "+852" },
+  { name: "Hungary", dial: "+36" },
+  { name: "Iceland", dial: "+354" },
+  { name: "India", dial: "+91" },
+  { name: "Indonesia", dial: "+62" },
+  { name: "Iran", dial: "+98" },
+  { name: "Iraq", dial: "+964" },
+  { name: "Ireland", dial: "+353" },
+  { name: "Isle of Man", dial: "+44-1624" },
+  { name: "Israel", dial: "+972" },
+  { name: "Italy", dial: "+39" },
+  { name: "Jamaica", dial: "+1-876" },
+  { name: "Japan", dial: "+81" },
+  { name: "Jersey", dial: "+44-1534" },
+  { name: "Jordan", dial: "+962" },
+  { name: "Kazakhstan", dial: "+7" },
+  { name: "Kenya", dial: "+254" },
+  { name: "Kiribati", dial: "+686" },
+  { name: "Kosovo", dial: "+383" },
+  { name: "Kuwait", dial: "+965" },
+  { name: "Kyrgyzstan", dial: "+996" },
+  { name: "Laos", dial: "+856" },
+  { name: "Latvia", dial: "+371" },
+  { name: "Lebanon", dial: "+961" },
+  { name: "Lesotho", dial: "+266" },
+  { name: "Liberia", dial: "+231" },
+  { name: "Libya", dial: "+218" },
+  { name: "Liechtenstein", dial: "+423" },
+  { name: "Lithuania", dial: "+370" },
+  { name: "Luxembourg", dial: "+352" },
+  { name: "Macau", dial: "+853" },
+  { name: "Madagascar", dial: "+261" },
+  { name: "Malawi", dial: "+265" },
+  { name: "Malaysia", dial: "+60" },
+  { name: "Maldives", dial: "+960" },
+  { name: "Mali", dial: "+223" },
+  { name: "Malta", dial: "+356" },
+  { name: "Marshall Islands", dial: "+692" },
+  { name: "Martinique", dial: "+596" },
+  { name: "Mauritania", dial: "+222" },
+  { name: "Mauritius", dial: "+230" },
+  { name: "Mayotte", dial: "+262" },
+  { name: "Mexico", dial: "+52" },
+  { name: "Micronesia", dial: "+691" },
+  { name: "Moldova", dial: "+373" },
+  { name: "Monaco", dial: "+377" },
+  { name: "Mongolia", dial: "+976" },
+  { name: "Montenegro", dial: "+382" },
+  { name: "Montserrat", dial: "+1-664" },
+  { name: "Morocco", dial: "+212" },
+  { name: "Mozambique", dial: "+258" },
+  { name: "Myanmar", dial: "+95" },
+  { name: "Namibia", dial: "+264" },
+  { name: "Nauru", dial: "+674" },
+  { name: "Nepal", dial: "+977" },
+  { name: "Netherlands", dial: "+31" },
+  { name: "New Caledonia", dial: "+687" },
+  { name: "New Zealand", dial: "+64" },
+  { name: "Nicaragua", dial: "+505" },
+  { name: "Niger", dial: "+227" },
+  { name: "Nigeria", dial: "+234" },
+  { name: "Niue", dial: "+683" },
+  { name: "North Korea", dial: "+850" },
+  { name: "North Macedonia", dial: "+389" },
+  { name: "Northern Mariana Islands", dial: "+1-670" },
+  { name: "Norway", dial: "+47" },
+  { name: "Oman", dial: "+968" },
+  { name: "Pakistan", dial: "+92" },
+  { name: "Palau", dial: "+680" },
+  { name: "Palestine", dial: "+970" },
+  { name: "Panama", dial: "+507" },
+  { name: "Papua New Guinea", dial: "+675" },
+  { name: "Paraguay", dial: "+595" },
+  { name: "Peru", dial: "+51" },
+  { name: "Philippines", dial: "+63" },
+  { name: "Poland", dial: "+48" },
+  { name: "Portugal", dial: "+351" },
+  { name: "Puerto Rico", dial: "+1-787" },
+  { name: "Puerto Rico", dial: "+1-939" },
+  { name: "Qatar", dial: "+974" },
+  { name: "Reunion", dial: "+262" },
+  { name: "Romania", dial: "+40" },
+  { name: "Russia", dial: "+7" },
+  { name: "Rwanda", dial: "+250" },
+  { name: "Saint Barthelemy", dial: "+590" },
+  { name: "Saint Helena", dial: "+290" },
+  { name: "Saint Kitts and Nevis", dial: "+1-869" },
+  { name: "Saint Lucia", dial: "+1-758" },
+  { name: "Saint Martin", dial: "+590" },
+  { name: "Saint Pierre and Miquelon", dial: "+508" },
+  { name: "Saint Vincent and the Grenadines", dial: "+1-784" },
+  { name: "Samoa", dial: "+685" },
+  { name: "San Marino", dial: "+378" },
+  { name: "Sao Tome and Principe", dial: "+239" },
+  { name: "Saudi Arabia", dial: "+966" },
+  { name: "Senegal", dial: "+221" },
+  { name: "Serbia", dial: "+381" },
+  { name: "Seychelles", dial: "+248" },
+  { name: "Sierra Leone", dial: "+232" },
+  { name: "Singapore", dial: "+65" },
+  { name: "Sint Maarten", dial: "+1-721" },
+  { name: "Slovakia", dial: "+421" },
+  { name: "Slovenia", dial: "+386" },
+  { name: "Solomon Islands", dial: "+677" },
+  { name: "Somalia", dial: "+252" },
+  { name: "South Africa", dial: "+27" },
+  { name: "South Korea", dial: "+82" },
+  { name: "South Sudan", dial: "+211" },
+  { name: "Spain", dial: "+34" },
+  { name: "Sri Lanka", dial: "+94" },
+  { name: "Sudan", dial: "+249" },
+  { name: "Suriname", dial: "+597" },
+  { name: "Sweden", dial: "+46" },
+  { name: "Switzerland", dial: "+41" },
+  { name: "Syria", dial: "+963" },
+  { name: "Taiwan", dial: "+886" },
+  { name: "Tajikistan", dial: "+992" },
+  { name: "Tanzania", dial: "+255" },
+  { name: "Thailand", dial: "+66" },
+  { name: "Timor-Leste", dial: "+670" },
+  { name: "Togo", dial: "+228" },
+  { name: "Tokelau", dial: "+690" },
+  { name: "Tonga", dial: "+676" },
+  { name: "Trinidad and Tobago", dial: "+1-868" },
+  { name: "Tunisia", dial: "+216" },
+  { name: "Turkey", dial: "+90" },
+  { name: "Turkmenistan", dial: "+993" },
+  { name: "Turks and Caicos Islands", dial: "+1-649" },
+  { name: "Tuvalu", dial: "+688" },
+  { name: "U.S. Virgin Islands", dial: "+1-340" },
+  { name: "Uganda", dial: "+256" },
+  { name: "Ukraine", dial: "+380" },
+  { name: "United Arab Emirates", dial: "+971" },
+  { name: "United Kingdom", dial: "+44" },
+  { name: "United States", dial: "+1" },
+  { name: "Uruguay", dial: "+598" },
+  { name: "Uzbekistan", dial: "+998" },
+  { name: "Vanuatu", dial: "+678" },
+  { name: "Vatican City", dial: "+379" },
+  { name: "Venezuela", dial: "+58" },
+  { name: "Vietnam", dial: "+84" },
+  { name: "Wallis and Futuna", dial: "+681" },
+  { name: "Yemen", dial: "+967" },
+  { name: "Zambia", dial: "+260" },
+  { name: "Zimbabwe", dial: "+263" },
+];
+
+const COUNTRY_TO_DIAL = {
+  CN: "+86",
+  IN: "+91",
+  US: "+1",
+  GB: "+44",
+  HK: "+852",
+  MO: "+853",
+  TW: "+886",
+};
+
+function normalizeOperatorLabel(operator, country) {
+  const op = String(operator || "").trim();
+  if (!op) return "-";
+  // Common CN operators returned in Chinese
+  if (country === "CN") {
+    if (op.includes("移动")) return "China Mobile";
+    if (op.includes("联通")) return "China Unicom";
+    if (op.includes("电信")) return "China Telecom";
+  }
+  return op;
 }
 
 /**
@@ -27,6 +296,13 @@ export class GoldCoinsExchange {
 
     // 话费选项（来自 /api/v1/ops/activity/charges，未加载则为 null）
     this.chargesOptions = null;
+    this.chargesLoaded = false;
+    this.chargesLoading = false;
+    this.lastChargesMobile = "";
+    this._chargesDebounceTimer = null;
+
+    // Redeem request lock (prevent multi-click / multi-request)
+    this.exchangeLoading = false;
 
     // 基础信息接口返回的 records（用于兑换记录列表与「查看全部」）
     this.records = [];
@@ -35,7 +311,10 @@ export class GoldCoinsExchange {
     // 兑换状态
     this.state = {
       mobile: "",
-      operator: "China Mobile",
+      // Fixed default country code (India)
+      countryCode: "+91",
+      countryCodeUserSelected: true,
+      operator: "-",
       amount: null,
       selectedCharge: null, // 接口返回的选项 { charges_id, amount, amount_text, spend_coin, description }
     };
@@ -47,7 +326,15 @@ export class GoldCoinsExchange {
     this.$ = {
       userGoldCoins: document.getElementById("userGoldCoins"),
       inputMobile: document.getElementById("inputMobile"),
+      countryCodeBtn: document.getElementById("countryCodeBtn"),
+      countryCodeModal: document.getElementById("countryCodeModal"),
+      countryCodeCloseBtn: document.getElementById("countryCodeCloseBtn"),
+      countryCodeSearch: document.getElementById("countryCodeSearch"),
+      countryCodeList: document.getElementById("countryCodeList"),
       operatorGrid: document.getElementById("operatorGrid"),
+      operatorLabel: document.getElementById("operatorLabel"),
+      operatorSection: document.getElementById("operatorSection"),
+      amountSection: document.getElementById("amountSection"),
       amountGrid: document.getElementById("amountGrid"),
       btnRedeem: document.getElementById("btnRedeem"),
       redeemSummary: document.getElementById("redeemSummary"),
@@ -60,11 +347,49 @@ export class GoldCoinsExchange {
    * 初始化页面
    */
   async init() {
+    if (this.$.countryCodeBtn) this.$.countryCodeBtn.textContent = this.state.countryCode;
+    if (this.$.operatorLabel) this.$.operatorLabel.textContent = this.state.operator || "-";
     this.updateUserGoldCoinsView();
     this.initHistory();
     this.bindEvents();
     await this.loadActivityInfo();
-    await this.loadCharges();
+    await this.loadRecords();
+    // /charges will be requested after user inputs phone number
+    this.setChargesUIVisible(false);
+  }
+
+  setChargesUIVisible(visible) {
+    if (this.$.operatorSection) this.$.operatorSection.style.display = visible ? "" : "none";
+    if (this.$.amountSection) this.$.amountSection.style.display = visible ? "" : "none";
+  }
+
+  resetChargesUI() {
+    this.chargesOptions = null;
+    this.chargesLoaded = false;
+    this.chargesLoading = false;
+    this.lastChargesMobile = "";
+    this.state.amount = null;
+    this.state.selectedCharge = null;
+    if (this.$.operatorLabel) this.$.operatorLabel.textContent = "-";
+    if (this.$.amountGrid) this.$.amountGrid.innerHTML = "";
+    this.setChargesUIVisible(false);
+    this.updateRedeemState();
+  }
+
+  maybeLoadChargesForMobile(mobile) {
+    const m = String(mobile || "");
+    if (!/^\d{6,15}$/.test(m)) {
+      this.resetChargesUI();
+      return;
+    }
+    // debounce to avoid spamming while typing
+    if (this._chargesDebounceTimer) clearTimeout(this._chargesDebounceTimer);
+    this._chargesDebounceTimer = setTimeout(() => {
+      if (this.chargesLoading) return;
+      if (this.lastChargesMobile === m && this.chargesLoaded) return;
+      this.lastChargesMobile = m;
+      this.loadCharges();
+    }, 350);
   }
 
   /**
@@ -80,12 +405,29 @@ export class GoldCoinsExchange {
         this.userGoldCoins = d.wallet_info.coin;
         this.updateUserGoldCoinsView();
       }
-      if (Array.isArray(d.records) && d.records.length > 0) {
-        this.records = d.records;
+    } catch (e) {
+      logger.warn("[活动接口] 兑换页拉取失败", e?.message || e);
+    }
+  }
+
+  /**
+   * 加载兑换记录（/api/v1/ops/activity/records）
+   */
+  async loadRecords() {
+    try {
+      const res = await getActivityRecords(this.config.apiOptions);
+      // New API: { code:200, data: Array<record> }
+      if (res?.code === 200 && Array.isArray(res?.data)) {
+        this.records = res.data;
+        this.renderRecords(this.records, this.showAllRecords);
+      } else {
+        this.records = [];
         this.renderRecords(this.records, this.showAllRecords);
       }
     } catch (e) {
-      logger.warn("[活动接口] 兑换页拉取失败，使用默认", e?.message || e);
+      logger.warn("[获取兑换记录] 请求失败，使用空记录", e?.message || e);
+      this.records = [];
+      this.renderRecords(this.records, false);
     }
   }
 
@@ -112,21 +454,40 @@ export class GoldCoinsExchange {
    */
   renderRecords(records, showAll = false) {
     if (!this.$.historyList) return;
-    const redeemOnly = (records || []).filter(
-      (r) => r.type === "spend" && r.business_type === "redeem"
-    );
+    const redeemOnly = (records || []).filter((r) => {
+      if (!r) return false;
+      if (r.type !== "spend") return false;
+      // Prefer business_type === "redeem" when provided
+      if (r.business_type) return r.business_type === "redeem";
+      return true;
+    });
     const sorted = redeemOnly.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     const list = showAll ? sorted : sorted.slice(0, 2);
 
     this.$.historyList.innerHTML = list
       .map((r) => {
         const coinNum = Math.abs(Number(r.coin) || 0);
+        const statusRaw = String(r.status || "success").toLowerCase();
+        let iconClass = "redeem-history-icon--success";
+        let iconText = "✓";
+        let statusLabel = "Success";
+        if (statusRaw === "processing") {
+          iconClass = "redeem-history-icon--processing";
+          iconText = "...";
+          statusLabel = "Processing";
+        } else if (statusRaw === "fail" || statusRaw === "failed" || statusRaw === "error") {
+          iconClass = "redeem-history-icon--fail";
+          iconText = "x";
+          statusLabel = "Failed";
+        }
         return `
         <div class="redeem-history-item">
-          <div class="redeem-history-icon">✓</div>
+          <div class="redeem-history-icon ${iconClass}">${iconText}</div>
           <div class="redeem-history-main">
             <div class="redeem-history-title">${escapeHtml(r.description || "Redeem")}</div>
-            <div class="redeem-history-subtitle">${escapeHtml(this.formatRecordDate(r.created_at))}</div>
+            <div class="redeem-history-subtitle">
+              ${escapeHtml(this.formatRecordDate(r.created_at))} • ${escapeHtml(statusLabel)}
+            </div>
           </div>
           <div class="redeem-history-amount">
             -${coinNum}
@@ -148,14 +509,35 @@ export class GoldCoinsExchange {
    */
   async loadCharges() {
     try {
+      this.chargesLoading = true;
       const res = await getCharges(this.config.apiOptions);
       if (res.code === 200 && res.data && Array.isArray(res.data.options) && res.data.options.length > 0) {
+        // Apply server-provided country/operator (single operator only)
+        const country = res.data.country || "";
+        const operatorLabel = normalizeOperatorLabel(res.data.operator, country);
+        this.state.operator = operatorLabel;
+        if (this.$.operatorLabel) this.$.operatorLabel.textContent = operatorLabel;
+
+        // Only set default dial code from server if user hasn't manually chosen one
+        const dial = COUNTRY_TO_DIAL[country] || "";
+        if (dial && !this.state.countryCodeUserSelected) {
+          this.state.countryCode = dial;
+          if (this.$.countryCodeBtn) this.$.countryCodeBtn.textContent = dial;
+        }
+
         this.chargesOptions = res.data.options;
         this.renderAmountGrid(res.data.options);
+        this.chargesLoaded = true;
+        this.setChargesUIVisible(true);
         logger.log("[获取充值信息] 使用接口数据渲染面额\n" + JSON.stringify(res.data, null, 2));
+      } else {
+        this.resetChargesUI();
       }
     } catch (e) {
-      logger.warn("[获取充值信息] 请求失败，使用默认面额", e?.message || e);
+      logger.warn("[获取充值信息] 请求失败", e?.message || e);
+      this.resetChargesUI();
+    } finally {
+      this.chargesLoading = false;
     }
   }
 
@@ -210,13 +592,27 @@ export class GoldCoinsExchange {
     if (!this.$.btnRedeem || !this.$.redeemSummary) return;
 
     const goldCoins = this.getRequiredGoldCoins();
-    const validMobile = this.state.mobile && this.state.mobile.length === 11;
+    const validMobile = typeof this.state.mobile === "string" && /^\d{6,15}$/.test(this.state.mobile);
     const hasAmount = !!this.state.amount;
     const canAfford = goldCoins > 0 && this.userGoldCoins >= goldCoins;
 
+    if (this.exchangeLoading) {
+      this.$.btnRedeem.disabled = true;
+      this.$.btnRedeem.classList.add("redeem-primary-btn--disabled");
+      this.$.redeemSummary.textContent = "Processing...";
+      return;
+    }
+
+    if (validMobile && !this.chargesLoaded) {
+      this.$.redeemSummary.textContent = "Loading top-up options...";
+      this.$.btnRedeem.disabled = true;
+      this.$.btnRedeem.classList.add("redeem-primary-btn--disabled");
+      return;
+    }
+
     if (validMobile && hasAmount) {
       const label = this.state.selectedCharge?.amount_text || `¥${this.state.amount}`;
-      this.$.redeemSummary.textContent = `Use ${goldCoins} coins to top up ${label} for ${this.state.mobile}`;
+      this.$.redeemSummary.textContent = `Use ${goldCoins} coins to top up ${label} for ${this.state.countryCode} ${this.state.mobile}`;
     } else {
       this.$.redeemSummary.textContent = "Enter mobile number and select amount";
     }
@@ -231,47 +627,30 @@ export class GoldCoinsExchange {
   }
 
   /**
-   * 显示兑换确认弹窗
+   * 组装本次兑换商品信息（用于回调展示）
    */
-  showExchangeModal() {
+  buildRedeemProduct() {
     const coins = this.getRequiredGoldCoins();
-    if (!coins) return;
+    if (!coins) return null;
 
     const label = this.state.selectedCharge?.amount_text || `¥${this.state.amount}`;
-    const product = {
+    return {
       name: `Top-up ${label}`,
       icon: "📱",
       points: coins,
-      mobile: this.state.mobile,
+      mobile: `${this.state.countryCode} ${this.state.mobile}`,
       operator: this.state.operator,
     };
-
-    this.selectedProduct = product;
-
-    document.getElementById("previewIcon").textContent = product.icon;
-    document.getElementById("previewName").textContent = product.name;
-    document.getElementById("previewPoints").textContent = `${product.points} Coins required`;
-    document.getElementById("confirmPoints").textContent = product.points;
-    document.getElementById("confirmName").textContent = `${product.mobile}`;
-
-    document.getElementById("exchangeModal").style.display = "flex";
-  }
-
-  /**
-   * 隐藏兑换确认弹窗
-   */
-  hideExchangeModal() {
-    document.getElementById("exchangeModal").style.display = "none";
-    this.selectedProduct = null;
   }
 
   /**
    * 执行兑换
    */
   async performExchange() {
-    if (!this.selectedProduct) return;
+    if (this.exchangeLoading) return;
 
-    const product = this.selectedProduct;
+    const product = this.buildRedeemProduct();
+    if (!product) return;
     const coins = product.points;
 
     // 检查金币是否足够
@@ -281,69 +660,68 @@ export class GoldCoinsExchange {
     }
 
     try {
-      await this.mockRedeemTopup(product);
+      this.exchangeLoading = true;
+      if (this.$.btnRedeem) {
+        if (!this.$.btnRedeem.dataset.originalText) {
+          this.$.btnRedeem.dataset.originalText = this.$.btnRedeem.textContent || "Redeem Now";
+        }
+        this.$.btnRedeem.textContent = "Processing...";
+        this.$.btnRedeem.disabled = true;
+        this.$.btnRedeem.classList.add("redeem-primary-btn--disabled");
+      }
 
-      // 更新金币
-      this.userGoldCoins -= coins;
-      this.updateUserGoldCoinsView();
+      const chargesId = this.state.selectedCharge?.charges_id || this.state.selectedCharge?.chargesId || "";
+      if (!chargesId) {
+        this.config.onExchangeFailed("Missing charges_id");
+        return;
+      }
+      const cc = String(this.state.countryCode || "").replace(/\D/g, "");
+      const phone = String(this.state.mobile || "").replace(/\D/g, "");
+      const phone_number = `${cc}${phone}`;
+      if (!/^\d{6,20}$/.test(phone_number)) {
+        this.config.onExchangeFailed("Invalid phone number");
+        return;
+      }
 
-      // 写入历史记录（前端 mock）
-      this.appendHistoryItem(product);
-
-      // 隐藏弹窗
-      this.hideExchangeModal();
+      const res = await postChargeRedeem(this.config.apiOptions, { charges_id: chargesId, phone_number });
+      const msg = res?.data?.message || res?.message || "";
+      if (res?.code !== 200) {
+        this.config.onExchangeFailed(msg || "Redemption failed, please try again");
+        return;
+      }
 
       // 回调成功
       this.config.onExchangeSuccess(product);
 
-      // 更新兑换按钮状态
+      // 刷新余额与兑换记录（来源：/activity/info）
+      await this.loadActivityInfo();
+
+      // 重置面额选择与按钮状态
+      this.state.amount = null;
+      this.state.selectedCharge = null;
+      if (this.$.amountGrid) {
+        this.$.amountGrid.querySelectorAll(".redeem-amount-btn").forEach((el) => el.classList.remove("redeem-amount-btn--active"));
+      }
       this.updateRedeemState();
     } catch (error) {
-      this.config.onExchangeFailed("Redemption failed, please try again");
+      logger.error("Redeem top-up failed", error);
+      this.config.onExchangeFailed(error?.message || "Redemption failed, please try again");
+    } finally {
+      this.exchangeLoading = false;
+      if (this.$.btnRedeem) {
+        this.$.btnRedeem.textContent = this.$.btnRedeem.dataset.originalText || "Redeem Now";
+      }
+      this.updateRedeemState();
     }
   }
 
-  /**
-   * 模拟话费充值 API
-   */
-  async mockRedeemTopup(product) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ success: true });
-      }, 500);
-    });
-  }
-
-  /**
-   * 追加一条兑换记录（前端）
-   */
-  appendHistoryItem(product) {
-    if (!this.$.historyList) return;
-
-    const item = document.createElement("div");
-    item.className = "redeem-history-item";
-    const now = new Date();
-    const timeStr = now.toLocaleString();
-
-    item.innerHTML = `
-      <div class="redeem-history-icon">✓</div>
-      <div class="redeem-history-main">
-        <div class="redeem-history-title">Top-up ${product.mobile}</div>
-        <div class="redeem-history-subtitle">${timeStr}</div>
-      </div>
-      <div class="redeem-history-amount">
-        -¥${this.state.amount}
-        <div class="redeem-history-coins">${product.points} Coins</div>
-      </div>
-    `;
-
-    this.$.historyList.prepend(item);
-  }
+  // 兑换记录由 /activity/info 的 data.records 渲染，不在前端本地造记录
 
   /**
    * 绑定事件
    */
   bindEvents() {
+    // Country code is fixed (+91). Picker disabled by design.
     // 查看全部 / 收起（仅兑换类型：默认 2 条，展开后全部）
     if (this.$.viewAllRecordsBtn) {
       this.$.viewAllRecordsBtn.addEventListener("click", () => {
@@ -352,52 +730,18 @@ export class GoldCoinsExchange {
       });
     }
 
-    // 关闭弹窗按钮
-    document.getElementById("modalCloseBtn").addEventListener("click", () => {
-      this.hideExchangeModal();
-    });
-
-    // 取消按钮
-    document.getElementById("cancelBtn").addEventListener("click", () => {
-      this.hideExchangeModal();
-    });
-
-    // 确认兑换按钮
-    document.getElementById("confirmBtn").addEventListener("click", () => {
-      this.performExchange();
-    });
-
-    // 点击弹窗外部关闭
-    document.getElementById("exchangeModal").addEventListener("click", (e) => {
-      if (e.target.id === "exchangeModal") {
-        this.hideExchangeModal();
-      }
-    });
+    // Redeem confirmation modal is disabled by design (direct redeem).
 
     // 手机号输入
     if (this.$.inputMobile) {
       this.$.inputMobile.addEventListener("input", (e) => {
-        this.state.mobile = e.target.value.trim();
+        this.state.mobile = String(e.target.value || "").replace(/\D/g, "").trim();
+        this.maybeLoadChargesForMobile(this.state.mobile);
         this.updateRedeemState();
       });
     }
 
-    // 运营商选择
-    if (this.$.operatorGrid) {
-      this.$.operatorGrid.addEventListener("click", (e) => {
-        const btn = e.target.closest(".redeem-operator-btn");
-        if (!btn) return;
-        const operator = btn.getAttribute("data-operator");
-        this.state.operator = operator;
-
-        this.$.operatorGrid
-          .querySelectorAll(".redeem-operator-btn")
-          .forEach((el) => el.classList.remove("redeem-operator-btn--active"));
-        btn.classList.add("redeem-operator-btn--active");
-
-        this.updateRedeemState();
-      });
-    }
+    // Operator is single value from /charges; no selection UI
 
     // 面额选择
     if (this.$.amountGrid) {
@@ -428,8 +772,44 @@ export class GoldCoinsExchange {
     // 立即兑换按钮
     if (this.$.btnRedeem) {
       this.$.btnRedeem.addEventListener("click", () => {
-        this.showExchangeModal();
+        this.performExchange();
       });
     }
+  }
+
+  renderCountryCodeList(query = "") {
+    if (!this.$.countryCodeList) return;
+    const q = String(query || "").trim().toLowerCase();
+    const items = COUNTRY_CALLING_CODES.filter((c) => {
+      if (!q) return true;
+      return c.name.toLowerCase().includes(q) || c.dial.toLowerCase().includes(q.replace(/\s+/g, ""));
+    });
+    this.$.countryCodeList.innerHTML = items
+      .map((c) => {
+        const isActive = c.dial === this.state.countryCode;
+        return `
+          <button type="button" class="redeem-countrycode-item ${isActive ? "redeem-countrycode-item--active" : ""}" data-dial="${escapeHtml(c.dial)}" style="width:100%;text-align:left;border:none;background:#fff;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;border:1px solid ${isActive ? "rgba(236,91,19,0.35)" : "#e5e7eb"};margin-bottom:8px;">
+            <span style="font-weight:700;color:#111827;">${escapeHtml(c.name)}</span>
+            <span style="font-weight:800;color:${isActive ? "#ec5b13" : "#374151"};">${escapeHtml(c.dial)}</span>
+          </button>
+        `;
+      })
+      .join("");
+
+    // bind click
+    this.$.countryCodeList.querySelectorAll("[data-dial]").forEach((btn) => {
+      btn.addEventListener(
+        "click",
+        () => {
+          const dial = btn.getAttribute("data-dial") || "+86";
+          this.state.countryCode = dial;
+          this.state.countryCodeUserSelected = true;
+          if (this.$.countryCodeBtn) this.$.countryCodeBtn.textContent = dial;
+          if (this.$.countryCodeModal) this.$.countryCodeModal.style.display = "none";
+          this.updateRedeemState();
+        },
+        { once: true }
+      );
+    });
   }
 }

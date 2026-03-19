@@ -516,6 +516,9 @@ body {
   line-height: 1.2;
   margin: 0 0 8px;
 }
+.signin-dialog-title--muted {
+  color: #9ca3af;
+}
 
 .signin-dialog-base-coins-wrap {
   text-align: center;
@@ -532,6 +535,10 @@ body {
   font-size: 1.5rem;
   font-weight: 700;
   color: #ec5b13;
+}
+.signin-dialog-base-coins-wrap .signin-dialog-base-coins.signin-dialog-base-coins--muted {
+  background: #f3f4f6;
+  color: #9ca3af;
 }
 
 .signin-dialog-boost-card {
@@ -599,6 +606,11 @@ body {
 
 .signin-dialog-watch-btn:active {
   transform: scale(0.98);
+}
+
+.signin-dialog-watch-btn.tc-signin-watch-loading {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .signin-dialog-watch-icon {
@@ -1141,5 +1153,20 @@ body {
 
 .tc-secondary-btn:active {
   transform: scale(0.97);
+}
+
+.tc-secondary-btn:disabled,
+.tc-secondary-btn.is-completed {
+  border-color: #d1d5db;
+  background-color: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.tc-secondary-btn:disabled:hover,
+.tc-secondary-btn.is-completed:hover {
+  border-color: #d1d5db;
+  background-color: #f3f4f6;
+  color: #9ca3af;
 }
 

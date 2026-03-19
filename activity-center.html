@@ -9,21 +9,20 @@
 </head>
 
 <body>
-  <div class="task-center-root">
-    <!-- 头部：用户信息 -->
-    <header class="tc-header">
-      <div class="tc-header-left">
-        <div class="tc-avatar"></div>
-        <div class="tc-user-meta">
-          <div class="tc-user-name" id="userGreeting"></div>
-          <div class="tc-user-tag">
-            <span class="tc-user-tag-icon">★</span>
-            <span class="tc-user-tag-text">Gold Member</span>
-          </div>
-        </div>
+  <!-- Auth failed dialog (shown when token missing) -->
+  <div id="authFailedModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;padding:20px;">
+    <div style="width:100%;max-width:360px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,0.25);">
+      <div style="padding:18px 18px 10px;font-weight:800;font-size:16px;color:#111827;">Authorization Failed</div>
+      <div style="padding:0 18px 18px;color:#4b5563;font-size:14px;line-height:1.5;">
+        Missing token. Please reopen this page from the app and try again.
       </div>
-    </header>
+      <div style="padding:0 18px 18px;display:flex;gap:10px;">
+        <button id="authFailedOk" type="button" style="flex:1;height:44px;border:none;border-radius:999px;background:linear-gradient(135deg,#ec5b13,#f97316);color:#fff;font-weight:800;cursor:pointer;">OK</button>
+      </div>
+    </div>
+  </div>
 
+  <div class="task-center-root">
     <main class="tc-main">
       <!-- 余额卡片 -->
       <section class="tc-section">
@@ -157,12 +156,12 @@
     <div class="signin-dialog-sheet">
       <div class="signin-dialog-handle" aria-hidden="true"></div>
       <div class="signin-dialog-body">
-        <div class="signin-dialog-celebration">
+        <div class="signin-dialog-celebration" id="signinDialogCelebration">
           <div class="signin-dialog-celebration-ring"></div>
           <div class="signin-dialog-celebration-icon">🎉</div>
         </div>
-        <h2 class="signin-dialog-title">Check-in Successful!</h2>
-        <div class="signin-dialog-base-coins-wrap">
+        <h2 class="signin-dialog-title" id="signinDialogTitle">Check-in Successful!</h2>
+        <div class="signin-dialog-base-coins-wrap" id="signinDialogBaseCoinsWrap">
           <span class="signin-dialog-base-coins" id="signinDialogBaseCoins">+0 Coins</span>
         </div>
         <div class="signin-dialog-boost-card">
@@ -187,47 +186,81 @@
     import { WelfareCenterBusiness as ActivityCenterBusiness } from "./activity-center-business.js";
     import { WelfareCenterAdapter as ActivityCenterAdapter } from "./activity-center-adapter.js";
     import { WelfareCenterUI as ActivityCenterUI } from "./activity-center-ui.js";
+    import { postAuthToken } from "./activity-api.js";
     import * as logger from "./activity-logger.js";
 
     // ==================== H5 与 SDK 协商接口 ====================
-    // 从 URL 获取参数（H5 需要知道如何获取这些参数）
+    // App 侧会打开：url?code=<code>&activity_id=<activity_id>
     const qp = new URLSearchParams(window.location.search);
-    const activityId = qp.get("activityId") || "activity_center_202512";
     const code = qp.get("code") || "";
-    const token = qp.get("token") || "";
-    const channelTag = qp.get("channelTag") || "";
-    const userIdFromUrl = qp.get("user_id") || qp.get("userId") || "";
-
-    // 解析 JWT token（如果需要从 token 中提取用户信息）
-    function parseJwt(rawToken) {
-      if (!rawToken) return null;
-      const parts = rawToken.split(".");
-      if (parts.length < 2) return null;
-      try {
-        const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-        const json = decodeURIComponent(
-          atob(base64)
-            .split("")
-            .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-            .join("")
-        );
-        return JSON.parse(json);
-      } catch (error) {
-        logger.error("Parse jwt failed", error);
-        return null;
-      }
+    const tokenFromUrl = qp.get("token") || "";
+    const activityId = qp.get("activity_id") || "activity_center_202512";
+    function showAuthFailedDialog() {
+      const modal = document.getElementById("authFailedModal");
+      if (modal) modal.style.display = "flex";
+      const ok = document.getElementById("authFailedOk");
+      if (ok) ok.addEventListener("click", () => {}, { once: true });
     }
 
-    const jwtClaims = parseJwt(token);
+    const channelTag = "";
+
+    const baseUrl = "http://10.0.33.63:8080";
+
+    // 用 URL token 或先通过 code 换取 access_token（用于所有后续接口调用）
+    let token = tokenFromUrl;
+
+    // Try reuse cached token first (code may be one-time)
+    // Do not log token/code themselves
+    try {
+      const cachedRaw = sessionStorage.getItem("activity_auth_cache_v1") || "";
+      const cached = cachedRaw ? JSON.parse(cachedRaw) : null;
+      const expiresAt = Number(cached?.expiresAt || 0); // epoch seconds
+      const nowSec = Math.floor(Date.now() / 1000);
+      const stillValid = !!cached?.token && (!expiresAt || nowSec < (expiresAt - 30));
+      if (!token && stillValid) {
+        token = String(cached.token || "");
+      }
+    } catch (e) {
+    }
+
+    try {
+      if (!token && code) {
+        const authRes = await postAuthToken({ baseUrl }, { code });
+        token = authRes?.data?.access_token || "";
+        // Cache token for in-app navigation (avoid reusing one-time code)
+        try {
+          const expiresAt = Number(authRes?.data?.expires_at || 0);
+          sessionStorage.setItem(
+            "activity_auth_cache_v1",
+            JSON.stringify({ token, expiresAt, savedAt: Date.now() })
+          );
+        } catch (e) {
+          logger.warn("[AuthCache] Save token cache failed (center)", e?.message || e);
+        }
+      }
+    } catch (e) {
+      logger.error("Exchange token failed", e);
+      showAuthFailedDialog();
+      throw e;
+    }
+    if (!token) {
+      logger.error("Exchange token failed: empty access_token");
+      showAuthFailedDialog();
+      throw new Error("Empty access_token");
+    }
 
     let apiOptions = {
-      baseUrl: qp.get("apiBaseUrl") || "http://10.0.33.63:8080",
-      app_id: qp.get("app_id") || "asdfjjshdsafj23h2",
-      app_secret: qp.get("app_secret") || "qerqwershdsafj23h2sdfaasdf",
+      baseUrl,
+      app_id: "asdfjjshdsafj23h2",
+      app_secret: "qerqwershdsafj23h2sdfaasdf",
+      token,
     };
 
-    /** 上次触发激励视频时的 taskId，用于回调无 taskId 时兜底（Native 可能不回传） */
-    let lastRewardAdTaskId = "task_watch_ad";
+    /** 上次触发签到激励视频时的 taskId，用于回调无 taskId 时兜底 */
+    let lastRewardAdTaskId = "task_checkin";
+    // 防止签到弹框“看视频”重复触发与重复领奖
+    let checkinWatchAdInFlight = false;
+    let checkinVideoClaimInFlight = false;
 
     // ==================== 初始化各层 ====================
     // 1. 初始化业务逻辑层
@@ -247,15 +280,7 @@
       channelTag,
       onSDKReady: (session) => {
         logger.log("SDK 初始化完成:", session);
-        business.loadActivityInfo(apiOptions).then((result) => {
-          if (result?.ok && result?.data?.user_info?.user_id) {
-            ui.updateUserDisplay(result.data.user_info.user_id);
-          } else {
-            const name = jwtClaims?.username || jwtClaims?.user_name || jwtClaims?.nickname || jwtClaims?.name || userIdFromUrl || "";
-            const email = jwtClaims?.email || jwtClaims?.mail || "";
-            ui.updateUserGreeting(name, email);
-          }
-        });
+        business.loadActivityInfo(apiOptions);
       },
       onEventCompleted: (result) => {
         // 处理 SDK 事件完成回调（H5 需要知道如何处理这些事件）
@@ -266,11 +291,10 @@
     // 3. 初始化 UI 层
     const ui = new ActivityCenterUI({
       onWatchAdClick: async () => {
-        // 触发广告（通过适配器调用 SDK）
+        // task_watch_ad 使用插页式广告（InterstitialAd），关闭即视为完成
         try {
-          lastRewardAdTaskId = "task_watch_ad";
           const adTaskStatus = business.getAdTaskStatus();
-          await adapter.triggerRewardAd({ taskId: "task_watch_ad", reward: adTaskStatus.reward });
+          await adapter.triggerInterstitialAd({ taskId: "task_watch_ad", reward: adTaskStatus.reward });
         } catch (error) {
           ui.showToast("Ad is not available", "error");
         }
@@ -283,22 +307,68 @@
         ui.hideAdOverlay();
       },
       onWithdrawClick: () => {
-        // 从当前 URL 继承 activityId / code / channelTag 等参数
-        const search = window.location.search || "";
-        window.location.href = `./gold-coins-exchange.html${search}`;
+        // 仅携带 token（兑换页不再请求 code / 换 token）
+        window.location.href = `./gold-coins-exchange.html?token=${encodeURIComponent(token)}&activity_id=${encodeURIComponent(activityId)}`;
       },
       onSigninClick: async () => {
-        const result = await business.doCheckin(apiOptions);
-        if (result.ok) {
-          ui.showSigninDialog(result);
+        // Always reset check-in video click locks when opening sign-in dialog.
+        checkinWatchAdInFlight = false;
+        checkinVideoClaimInFlight = false;
+        ui.setSigninWatchLoading(false);
+
+        const today = business.getTodayCheckinDay();
+        const received = !!today?.received;
+        const videoReceived = !!today?.video_received;
+
+        // Not completed normal check-in => call /checkin then show full dialog.
+        if (!received) {
+          const result = await business.doCheckin(apiOptions);
+          if (result.ok) {
+            checkinWatchAdInFlight = false;
+            checkinVideoClaimInFlight = false;
+            ui.setSigninWatchLoading(false);
+            ui.showSigninDialog(result);
+          }
+          return;
         }
+
+        // Normal check-in already done, but video check-in not done => show compact dialog only.
+        if (received && !videoReceived) {
+          const coin = Number(today?.coin ?? 0);
+          const video_coin = Number(today?.video_coin ?? 0);
+          const multiplier = coin > 0 ? Math.floor(video_coin / coin) : 0;
+          checkinWatchAdInFlight = false;
+          checkinVideoClaimInFlight = false;
+          ui.setSigninWatchLoading(false);
+          ui.showSigninDialog({
+            coinFromCheckin: coin,
+            video_coin,
+            multiplier,
+            alreadyChecked: true,
+          });
+          return;
+        }
+
+        // Both completed.
+        ui.showToast("All check-in tasks completed", "info");
       },
       onSigninWatchVideoClick: async () => {
+        if (checkinWatchAdInFlight) return;
         try {
+          checkinWatchAdInFlight = true;
+          ui.setSigninWatchLoading(true);
           lastRewardAdTaskId = "task_checkin";
           const today = business.getTodayCheckinDay();
+          logger.log("[签到弹框看视频] triggerRewardAd", {
+            taskId: "task_checkin",
+            reward: today?.video_coin,
+            hasToday: !!today,
+          });
+          // task_checkin 使用插页式激励广告（RewardedInterstitialAd）
           await adapter.triggerRewardAd({ taskId: "task_checkin", reward: today?.video_coin });
         } catch (e) {
+          checkinWatchAdInFlight = false;
+          ui.setSigninWatchLoading(false);
           ui.showToast("Video is not available", "error");
         }
       },
@@ -321,36 +391,52 @@
       const success = result.success;
       const message = result.message || "";
 
-      // 根据事件类型处理（H5 需要知道如何处理这些事件类型）
+      // ---- 插页式激励广告（task_checkin 签到看广告）----
       if (eventType === window.ActivityBridgeHelper?.EventType?.REWARD_AD) {
-        // 回调里若没有 taskId，用「上次触发时」保存的 taskId 兜底（Native 可能不回传）
+        // 只处理 task_checkin（签到看广告），需要用户完整看完才算
         const taskId = result.taskId || result.task_id || lastRewardAdTaskId;
-        logger.log("[活动事件完成] reward_ad 分支 taskId=" + taskId + ", success=" + success);
+        logger.log("[活动事件完成] reward_ad taskId=" + taskId + ", success=" + success);
         if (success) {
-          if (taskId === "task_checkin") {
-            const video_id = result.video_id ?? result.videoId ?? result.data?.video_id ?? "";
-            logger.log("[活动事件完成] 进入签到看视频领奖 video_id=" + video_id);
-            business.claimCheckinVideoReward(apiOptions, video_id);
-            adapter.trackEvent("checkin_video_completed", { taskId, success: true });
-          } else {
-            logger.log("[活动事件完成] 进入普通看广告领奖");
-            business.markAdCanClaim();
-            ui.showToast("Ad completed! You can claim coins now.", "success");
-            const adTaskStatus = business.getAdTaskStatus();
-            adapter.trackEvent("ad_watch_completed", {
-              taskId: "task_watch_ad",
-              reward: adTaskStatus.reward,
-              success: true,
-              platform: adapter.getPlatform(),
+          const video_id = result.video_id ?? result.videoId ?? result.data?.video_id ?? "";
+          logger.log("[活动事件完成] 签到看视频领奖 video_id=" + video_id);
+          if (checkinVideoClaimInFlight) return;
+          checkinVideoClaimInFlight = true;
+          business
+            .claimCheckinVideoReward(apiOptions, video_id)
+            .finally(() => {
+              checkinVideoClaimInFlight = false;
+              checkinWatchAdInFlight = false;
+              ui.setSigninWatchLoading(false);
             });
-          }
+          adapter.trackEvent("checkin_video_completed", { taskId, success: true });
+        } else {
+          checkinWatchAdInFlight = false;
+          ui.setSigninWatchLoading(false);
+          ui.showToast(message || "Ad not completed", "warning");
+          adapter.trackEvent("checkin_video_failed", { taskId, reason: message || "unknown" });
+        }
+        return;
+      }
+
+      // ---- 插页式广告（task_watch_ad 每日看视频）----
+      if (eventType === window.ActivityBridgeHelper?.EventType?.INTERSTITIAL_AD) {
+        logger.log("[活动事件完成] interstitial_ad success=" + success);
+        if (success) {
+          const video_id = result.video_id ?? result.videoId ?? result.data?.video_id ?? "";
+          logger.log("[活动事件完成] 日常看视频领奖 video_id=" + video_id);
+          business.claimDailyVideoReward(apiOptions, video_id);
+          const adTaskStatus = business.getAdTaskStatus();
+          adapter.trackEvent("daily_video_completed", {
+            taskId: "task_watch_ad",
+            reward: adTaskStatus.reward,
+            success: true,
+            platform: adapter.getPlatform(),
+          });
         } else {
           ui.showToast(message || "Ad not completed", "warning");
-          adapter.trackEvent(taskId === "task_checkin" ? "checkin_video_failed" : "ad_watch_failed", {
-            taskId,
-            reason: message || "unknown",
-          });
+          adapter.trackEvent("ad_watch_failed", { taskId: "task_watch_ad", reason: message || "unknown" });
         }
+        return;
       }
     }
 
@@ -360,6 +446,8 @@
     // 广告播放错误处理（H5-SDK 协商）
     window.onRewardedAdError = function (error) {
       logger.error("广告播放错误:", error);
+      checkinWatchAdInFlight = false;
+      ui.setSigninWatchLoading(false);
       ui.showToast("Ad failed to play, please try again", "error");
       adapter.trackEvent("ad_watch_error", {
         taskId: "task_watch_ad",

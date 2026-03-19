@@ -56,7 +56,7 @@ export class WelfareCenterBusiness {
 
   /**
    * 加载活动基础数据（后端接口 /api/v1/ops/activity/info）
-   * 成功则用接口数据更新资产与任务；失败则回退到 mock 数据
+   * 成功则用接口数据更新资产与任务；失败则返回错误
    * @param {Object} [apiOptions] - { baseUrl?, app_id?, app_secret? }
    */
   async loadActivityInfo(apiOptions = {}) {
@@ -87,7 +87,7 @@ export class WelfareCenterBusiness {
               completed: v.today_watched ?? 0,
               daily_limit: v.daily_limit ?? 0,
               reward: v.coin ?? 0,
-              canClaim: this.adTaskStatus.canClaim,
+              canClaim: false,
             };
             this.config.onTaskUpdate({ watchAd: this.adTaskStatus });
           }
@@ -103,9 +103,7 @@ export class WelfareCenterBusiness {
       logger.warn("[活动接口] 返回码异常\n" + JSON.stringify({ code: res.code, res }, null, 2));
       throw new Error(res.message || "API returned an error");
     } catch (error) {
-      logger.warn("[活动接口] 请求失败，使用 mock 数据", error?.message ?? error);
-      await this.loadUserAssets();
-      await this.loadTasks();
+      logger.error("[活动接口] 请求失败", error?.message ?? error);
       return { ok: false, error };
     }
   }
@@ -117,7 +115,7 @@ export class WelfareCenterBusiness {
    */
   async doCheckin(apiOptions = {}) {
     try {
-      const res = await postCheckin(apiOptions);
+      const res = await postCheckin(apiOptions, { type: "base" });
       if (res.code !== 200) {
         this.config.onToast(res.message || "Check-in failed", "error");
         return { ok: false };
@@ -136,13 +134,42 @@ export class WelfareCenterBusiness {
   }
 
   /**
-   * 签到看视频成功领取奖励：调用 /api/v1/ops/activity/video，然后 tip message，再刷新基础信息
+   * 签到看视频成功领取奖励：调用 /api/v1/ops/activity/checkin(type=triple)，然后 tip message，再刷新基础信息
    * @param {Object} [apiOptions] - { baseUrl?, app_id?, app_secret? }
    * @param {string} [video_id] - 看完视频后得到的视频 id（来自 SDK 回调）
    * @returns {Promise<{ ok: boolean }>}
    */
   async claimCheckinVideoReward(apiOptions = {}, video_id = "") {
-    logger.log("[签到看视频领奖] 调用 /api/v1/ops/activity/video video_id=" + video_id);
+    logger.log("[签到看视频领奖] 调用 /api/v1/ops/activity/checkin type=triple, video_id=" + video_id);
+    let success = false;
+    try {
+      const res = await postCheckin(apiOptions, { type: "triple" });
+      const msg = res.data?.message ?? res.message ?? "";
+      if (res.code === 200) {
+        success = true;
+        this.config.onToast(msg || "Video completed! Coins rewarded.", "success");
+      } else {
+        this.config.onToast(msg || "Claim failed", "error");
+      }
+    } catch (error) {
+      logger.error("Claim checkin video reward failed", error);
+      this.config.onToast(error?.message || "Claim failed, please try again", "error");
+    }
+    // Refresh only after successful reward claim.
+    if (success) {
+      await this.loadActivityInfo(apiOptions);
+    }
+    return { ok: true };
+  }
+
+  /**
+   * 日常看视频领奖：广告看完后调用 /api/v1/ops/activity/video，然后刷新基础信息
+   * @param {Object} [apiOptions] - { baseUrl?, app_id?, app_secret?, token? }
+   * @param {string} [video_id]
+   * @returns {Promise<{ ok: boolean }>}
+   */
+  async claimDailyVideoReward(apiOptions = {}, video_id = "") {
+    logger.log("[日常看视频领奖] 调用 /api/v1/ops/activity/video video_id=" + video_id);
     try {
       const res = await postCheckinVideo(apiOptions, { video_id });
       const msg = res.data?.message ?? res.message ?? "";
@@ -152,48 +179,11 @@ export class WelfareCenterBusiness {
         this.config.onToast(msg || "Claim failed", "error");
       }
     } catch (error) {
-      logger.error("Claim checkin video reward failed", error);
+      logger.error("Claim daily video reward failed", error);
       this.config.onToast(error?.message || "Claim failed, please try again", "error");
     }
     await this.loadActivityInfo(apiOptions);
     return { ok: true };
-  }
-
-  /**
-   * 加载用户资产
-   */
-  async loadUserAssets() {
-    try {
-      const response = await this.mockFetchUserAssets();
-      if (response.ok) {
-        this.userAssets = response.data;
-        this.config.onAssetsUpdate(this.userAssets);
-      }
-      return response;
-    } catch (error) {
-      logger.error("Load assets failed", error);
-      throw error;
-    }
-  }
-
-  /**
-   * 加载任务列表
-   */
-  async loadTasks() {
-    try {
-      const response = await this.mockFetchTasks();
-      if (response.ok) {
-        const tasks = response.data;
-        if (tasks.watchAd) {
-          this.adTaskStatus = tasks.watchAd;
-          this.config.onTaskUpdate({ watchAd: this.adTaskStatus });
-        }
-      }
-      return response;
-    } catch (error) {
-      logger.error("Load tasks failed", error);
-      throw error;
-    }
   }
 
   /**
@@ -205,27 +195,9 @@ export class WelfareCenterBusiness {
       return { ok: false, message: "Please watch the full ad first" };
     }
 
-    try {
-      const response = await this.mockClaimReward("task_watch_ad", this.adTaskStatus.reward);
-      if (response.ok) {
-        // 更新资产
-        this.userAssets.goldCoins += this.adTaskStatus.reward;
-        this.adTaskStatus.completed += 1;
-        this.adTaskStatus.canClaim = false;
-
-        // 通知更新
-        this.config.onAssetsUpdate(this.userAssets);
-        this.config.onTaskUpdate({ watchAd: this.adTaskStatus });
-        this.config.onToast(`Successfully claimed ${this.adTaskStatus.reward} coins!`, "success");
-      } else {
-        this.config.onToast(response.message || "Claim failed", "error");
-      }
-      return response;
-    } catch (error) {
-      logger.error("Claim reward failed", error);
-      this.config.onToast("Claim failed, please try again", "error");
-      throw error;
-    }
+    // Daily video rewards are now claimed via backend callback flow.
+    this.config.onToast("Reward is claimed automatically after ad completion", "info");
+    return { ok: false, message: "Reward is claimed automatically after ad completion" };
   }
 
   /**
@@ -256,69 +228,5 @@ export class WelfareCenterBusiness {
   updateAdTaskReward(reward) {
     this.adTaskStatus.reward = reward;
     this.config.onTaskUpdate({ watchAd: this.adTaskStatus });
-  }
-
-  // ==================== Mock API ====================
-
-  async mockFetchUserAssets() {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    return {
-      ok: true,
-      data: {
-        goldCoins: 0,
-      },
-    };
-  }
-
-  async mockFetchTasks() {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const mockCheckinDetail = {
-      continuous_days: 3,
-      next_day_coin: 100,
-      super_reward_day: 7,
-      days: [
-        { day: 1, coin: 50, video_coin: 100, current: false, received: true, video_received: false },
-        { day: 2, coin: 60, video_coin: 120, current: false, received: true, video_received: false },
-        { day: 3, coin: 80, video_coin: 160, current: false, received: true, video_received: false },
-        { day: 4, coin: 100, video_coin: 200, current: true, received: false, video_received: false },
-        { day: 5, coin: 120, video_coin: 240, current: false, received: false, video_received: false },
-        { day: 6, coin: 150, video_coin: 300, current: false, received: false, video_received: false },
-        { day: 7, coin: 500, video_coin: 1000, current: false, received: false, video_received: false },
-      ],
-    };
-    this.checkinDetail = mockCheckinDetail;
-    this.config.onCheckinUpdate(mockCheckinDetail);
-    return {
-      ok: true,
-      data: {
-        watchAd: {
-          completed: 0,
-          daily_limit: 0,
-          reward: 0,
-          canClaim: false,
-        },
-      },
-    };
-  }
-
-  async mockDoCheckin() {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    if (!this.checkinDetail || !Array.isArray(this.checkinDetail.days)) {
-      return { ok: false, message: "No check-in data" };
-    }
-    const todayIdx = this.checkinDetail.days.findIndex((d) => d.current === true);
-    if (todayIdx < 0) return { ok: false, message: "Already checked in today or not check-in day" };
-    this.checkinDetail.days[todayIdx].received = true;
-    this.config.onCheckinUpdate(this.checkinDetail);
-    const today = this.checkinDetail.days[todayIdx];
-    return { ok: true, coin: today.coin, video_coin: today.video_coin };
-  }
-
-  async mockClaimReward(taskId, reward) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return {
-      ok: true,
-      message: "Claim successful",
-    };
   }
 }
