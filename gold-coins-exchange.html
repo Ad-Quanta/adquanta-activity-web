@@ -43,7 +43,7 @@
             <div class="redeem-wallet-hint">Use for top-up and more rewards</div>
           </div>
           <div class="redeem-wallet-icon">
-            <img src="./icons/gold_coin.svg" alt="coins" class="icon-img">
+            <img src="./icons/gold-coin-white.svg" alt="coins" class="icon-img">
           </div>
         </div>
       </section>
@@ -172,7 +172,8 @@
     }
 
     // baseUrl（写死）：后端 API 服务地址（8080）
-    const baseUrl = "http://10.0.33.63:8080";
+    // Use same origin to avoid browser CORS; 8848 Flask will proxy /api/* to real backend.
+    const baseUrl = window.location.origin;
     let token = "";
 
     // Try reuse token from activity center (code may be one-time)

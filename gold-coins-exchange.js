@@ -313,10 +313,14 @@ export class GoldCoinsExchange {
       mobile: "",
       // Fixed default country code (India)
       countryCode: "+91",
+      // Backend country enum
+      countryCodeEnum: "IN",
       countryCodeUserSelected: true,
       operator: "-",
       amount: null,
-      selectedCharge: null, // 接口返回的选项 { charges_id, amount, amount_text, spend_coin, description }
+      // Flattened product selected from /charges
+      // { charges_id(sku_code), amount, amount_text, spend_coin, provider_name, receive_currency }
+      selectedCharge: null,
     };
 
     // 无接口时的默认比例（1 元 = 100 金币）
@@ -510,23 +514,44 @@ export class GoldCoinsExchange {
   async loadCharges() {
     try {
       this.chargesLoading = true;
-      const res = await getCharges(this.config.apiOptions);
-      if (res.code === 200 && res.data && Array.isArray(res.data.options) && res.data.options.length > 0) {
-        // Apply server-provided country/operator (single operator only)
-        const country = res.data.country || "";
-        const operatorLabel = normalizeOperatorLabel(res.data.operator, country);
-        this.state.operator = operatorLabel;
-        if (this.$.operatorLabel) this.$.operatorLabel.textContent = operatorLabel;
+      const res = await getCharges(this.config.apiOptions, {
+        country_code: this.state.countryCodeEnum,
+        phone_number: this.state.mobile,
+      });
 
-        // Only set default dial code from server if user hasn't manually chosen one
-        const dial = COUNTRY_TO_DIAL[country] || "";
-        if (dial && !this.state.countryCodeUserSelected) {
-          this.state.countryCode = dial;
-          if (this.$.countryCodeBtn) this.$.countryCodeBtn.textContent = dial;
+      // New API: { code:200, data:{ country, currency, providers:[{provider_name, products:[{sku_code, receive_value, receive_currency, spend_coin, available}]}] } }
+      const providers = res?.data?.providers;
+      if (res.code === 200 && Array.isArray(providers) && providers.length > 0) {
+        const flattened = providers.flatMap((p) => {
+          const providerName = p?.provider_name ?? "";
+          const products = Array.isArray(p?.products) ? p.products : [];
+          return products
+            .filter((prod) => prod && prod.available === true)
+            .map((prod) => ({
+              charges_id: prod.sku_code ?? "",
+              amount: Number(prod.receive_value ?? 0),
+              amount_text: `${prod.receive_value ?? 0} ${prod.receive_currency ?? ""}`.trim(),
+              spend_coin: Number(prod.spend_coin ?? 0),
+              provider_name: providerName,
+              receive_currency: prod.receive_currency ?? "",
+              send_value: prod.send_value ?? "",
+            }));
+        });
+
+        // Remove empty / NaN and sort by amount ascending
+        const cleaned = flattened.filter((x) => x.charges_id && Number.isFinite(x.amount)).sort((a, b) => a.amount - b.amount);
+
+        if (!cleaned.length) {
+          this.resetChargesUI();
+          return;
         }
 
-        this.chargesOptions = res.data.options;
-        this.renderAmountGrid(res.data.options);
+        // Operator label: show provider of the first available option
+        this.state.operator = cleaned[0]?.provider_name || "-";
+        if (this.$.operatorLabel) this.$.operatorLabel.textContent = this.state.operator;
+
+        this.chargesOptions = cleaned;
+        this.renderAmountGrid(cleaned);
         this.chargesLoaded = true;
         this.setChargesUIVisible(true);
         logger.log("[获取充值信息] 使用接口数据渲染面额\n" + JSON.stringify(res.data, null, 2));
@@ -549,7 +574,9 @@ export class GoldCoinsExchange {
     this.$.amountGrid.innerHTML = options
       .map(
         (o) =>
-          `<button class="redeem-amount-btn" data-amount="${o.amount}" data-spend-coin="${o.spend_coin}" data-charges-id="${o.charges_id}">${o.amount_text}</button>`
+          `<button class="redeem-amount-btn" data-amount="${o.amount}" data-spend-coin="${o.spend_coin}" data-charges-id="${escapeHtml(
+            o.charges_id
+          )}">${escapeHtml(o.amount_text || String(o.amount))}</button>`
       )
       .join("");
     this.state.amount = null;
@@ -611,7 +638,7 @@ export class GoldCoinsExchange {
     }
 
     if (validMobile && hasAmount) {
-      const label = this.state.selectedCharge?.amount_text || `¥${this.state.amount}`;
+      const label = this.state.selectedCharge?.amount_text || String(this.state.amount ?? "");
       this.$.redeemSummary.textContent = `Use ${goldCoins} coins to top up ${label} for ${this.state.countryCode} ${this.state.mobile}`;
     } else {
       this.$.redeemSummary.textContent = "Enter mobile number and select amount";
@@ -633,7 +660,7 @@ export class GoldCoinsExchange {
     const coins = this.getRequiredGoldCoins();
     if (!coins) return null;
 
-    const label = this.state.selectedCharge?.amount_text || `¥${this.state.amount}`;
+    const label = this.state.selectedCharge?.amount_text || String(this.state.amount ?? "");
     return {
       name: `Top-up ${label}`,
       icon: "📱",
@@ -675,6 +702,11 @@ export class GoldCoinsExchange {
         this.config.onExchangeFailed("Missing charges_id");
         return;
       }
+      const sendValue = this.state.selectedCharge?.send_value ?? this.state.selectedCharge?.sendValue ?? "";
+      if (sendValue === "" || sendValue === null || sendValue === undefined) {
+        this.config.onExchangeFailed("Missing send_value");
+        return;
+      }
       const cc = String(this.state.countryCode || "").replace(/\D/g, "");
       const phone = String(this.state.mobile || "").replace(/\D/g, "");
       const phone_number = `${cc}${phone}`;
@@ -683,7 +715,12 @@ export class GoldCoinsExchange {
         return;
       }
 
-      const res = await postChargeRedeem(this.config.apiOptions, { charges_id: chargesId, phone_number });
+      // Backend requires sku_code + send_value (instead of charges_id).
+      const res = await postChargeRedeem(this.config.apiOptions, {
+        sku_code: String(chargesId),
+        send_value: sendValue,
+        phone_number,
+      });
       const msg = res?.data?.message || res?.message || "";
       if (res?.code !== 200) {
         this.config.onExchangeFailed(msg || "Redemption failed, please try again");
@@ -757,7 +794,18 @@ export class GoldCoinsExchange {
             ? this.chargesOptions.find((o) => o.charges_id === chargesId) || null
             : null;
         if (!this.state.selectedCharge && spendCoin) {
-          this.state.selectedCharge = { amount, spend_coin: spendCoin, amount_text: `$${amount}` };
+          this.state.selectedCharge = {
+            charges_id: chargesId,
+            amount,
+            spend_coin: spendCoin,
+            amount_text: `${amount}`,
+            provider_name: this.state.operator || "-",
+            send_value: "",
+          };
+        }
+        if (this.state.selectedCharge?.provider_name) {
+          this.state.operator = this.state.selectedCharge.provider_name;
+          if (this.$.operatorLabel) this.$.operatorLabel.textContent = this.state.operator;
         }
 
         this.$.amountGrid

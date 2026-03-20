@@ -159,23 +159,31 @@ export async function postCheckinVideo(options = {}, body = {}) {
 /**
  * 获取话费充值选项
  * GET /api/v1/ops/activity/charges
- * @param {Object} options - { baseUrl?, app_id?, app_secret? }
- * @returns {Promise<{ code: number, data?: { region, currency, options } }>}
+ * 参数：
+ * - country_code: "IN"（国家枚举）
+ * - phone_number: 手机号
+ *
+ * @param {Object} options - { baseUrl?, token? }
+ * @param {{ country_code?: string, phone_number?: string }} params
+ * @returns {Promise<{ code: number, data?: any }>}
  */
-export async function getCharges(options = {}) {
+export async function getCharges(options = {}, params = {}) {
   const baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/$/, "");
-  const appId = options.app_id ?? DEFAULT_APP_ID;
-  const appSecret = options.app_secret ?? DEFAULT_APP_SECRET;
-
-  const url = `${baseUrl}/api/v1/ops/activity/charges?app_id=${encodeURIComponent(appId)}&app_secret=${encodeURIComponent(appSecret)}`;
-  return loggedFetch("getCharges", url, { method: "GET", headers: { ...buildAuthHeaders(options) } });
+  const url = `${baseUrl}/api/v1/ops/activity/charges?${new URLSearchParams({
+    country_code: params.country_code ?? "",
+    phone_number: params.phone_number ?? "",
+  }).toString()}`;
+  return loggedFetch("getCharges", url, {
+    method: "GET",
+    headers: { ...buildAuthHeaders(options) },
+  });
 }
 
 /**
  * 充值下单（兑换话费）
  * POST /api/v1/ops/activity/charges
  * @param {Object} options - { baseUrl?, token? }
- * @param {{ charges_id: string, phone_number: string }} body
+ * @param {{ sku_code: string, send_value: number|string, phone_number: string }} body
  * @returns {Promise<{ code: number, data?: any, message?: string }>}
  */
 export async function postChargeRedeem(options = {}, body = {}) {
@@ -185,7 +193,8 @@ export async function postChargeRedeem(options = {}, body = {}) {
     method: "POST",
     headers: { "Content-Type": "application/json", ...buildAuthHeaders(options) },
     body: JSON.stringify({
-      charges_id: body.charges_id ?? "",
+      sku_code: body.sku_code ?? "",
+      send_value: body.send_value ?? "",
       phone_number: body.phone_number ?? "",
     }),
   });
