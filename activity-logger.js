@@ -13,21 +13,11 @@ function formatMessage(args) {
 function forwardToNative(level, msg) {
   if (typeof window === "undefined") return;
 
-  // Prefer explicit ADActivitySDK tag on Android (native side can print with tag "AdActivitySDK")
-  const candidates = [
-    window.ADActivitySDK,
-    window.AdActivitySDK,
-    window.ActivityBridgeHelper,
-    window.H5ActivityHelper,
-  ];
-
-  for (const obj of candidates) {
-    if (!obj) continue;
-    if (typeof obj.log === "function") {
-      try {
-        obj.log(level, msg);
-      } catch (_) {}
-    }
+  const bridge = window.ActivityBridgeHelper;
+  if (bridge && typeof bridge.log === "function") {
+    try {
+      bridge.log(level, msg);
+    } catch (_) {}
   }
 }
 

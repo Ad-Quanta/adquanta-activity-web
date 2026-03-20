@@ -5,6 +5,7 @@
  */
 import * as logger from "./activity-logger.js";
 
+// DEFAULT_BASE_URL（写死）：指向“后端 API 服务”（8080）
 const DEFAULT_BASE_URL = "http://10.0.33.63:8080";
 const DEFAULT_APP_ID = "asdfjjshdsafj23h2";
 const DEFAULT_APP_SECRET = "qerqwershdsafj23h2sdfaasdf";
