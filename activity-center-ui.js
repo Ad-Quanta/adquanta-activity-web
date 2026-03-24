@@ -263,6 +263,7 @@ export class WelfareCenterUI {
       }).join("");
       if (this.elements.signinTimerBtn) {
         this.elements.signinTimerBtn.disabled = true;
+        this.elements.signinTimerBtn.classList.remove("tc-secondary-btn", "is-completed");
         const span = this.elements.signinTimerBtn.querySelector("span");
         if (span) span.textContent = "Check-in Now";
       }
@@ -307,8 +308,14 @@ export class WelfareCenterUI {
       const allCompleted = received && videoReceived;
       const canCheckin = !allCompleted;
       signinBtn.disabled = !canCheckin;
+      if (allCompleted) {
+        // Use the exact same completed style as daily video task button
+        signinBtn.classList.add("tc-secondary-btn", "is-completed");
+      } else {
+        signinBtn.classList.remove("tc-secondary-btn", "is-completed");
+      }
       const span = signinBtn.querySelector("span");
-      if (span) span.textContent = canCheckin ? "Check-in Now" : "All check-in tasks completed";
+      if (span) span.textContent = canCheckin ? "Check-in Now" : "Completed";
     }
   }
 
@@ -347,6 +354,7 @@ export class WelfareCenterUI {
     // 签到按钮
     if (this.elements.signinTimerBtn) {
       this.elements.signinTimerBtn.addEventListener("click", () => {
+        if (this.elements.signinTimerBtn.disabled) return;
         this.config.onSigninClick();
       });
     }

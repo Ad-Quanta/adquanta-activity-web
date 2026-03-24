@@ -68,12 +68,10 @@
           </div>
         </div>
 
-        <!-- Operator (hidden until charges loaded) -->
+        <!-- Operator (hidden until charges loaded): 展示全部运营商，选中后再展示该运营商的面额 -->
         <div class="redeem-field" id="operatorSection" style="display:none;">
           <label class="redeem-label">Operator</label>
-          <div class="redeem-operator-single">
-            <span class="redeem-operator-pill" id="operatorLabel">-</span>
-          </div>
+          <div class="redeem-operator-grid" id="operatorGrid"></div>
         </div>
 
         <!-- Amount (hidden until charges loaded) -->
@@ -156,7 +154,7 @@
 
   <script type="module">
     import { GoldCoinsExchange } from "./gold-coins-exchange.js";
-    import { postAuthToken } from "./activity-api.js";
+    import { postAuthToken, BaseApiUrl } from "./activity-api.js";
     import * as logger from "./activity-logger.js";
 
     const qp = new URLSearchParams(window.location.search);
@@ -171,9 +169,7 @@
       if (ok) ok.addEventListener("click", () => {}, { once: true });
     }
 
-    // baseUrl（写死）：后端 API 服务地址（8080）
-    // Use same origin to avoid browser CORS; 8848 Flask will proxy /api/* to real backend.
-    const baseUrl = window.location.origin;
+    // BaseApiUrl：后端 API（8080）；与 H5 静态页 window.location.origin 区分（见 activity-api.js）
     let token = "";
 
     // Try reuse token from activity center (code may be one-time)
@@ -199,7 +195,7 @@
           showAuthFailedDialog();
           throw new Error("Missing token and code in URL");
         }
-        const authRes = await postAuthToken({ baseUrl }, { code });
+        const authRes = await postAuthToken({ baseUrl: BaseApiUrl }, { code });
         token = authRes?.data?.access_token || "";
       }
     } catch (e) {
@@ -212,9 +208,8 @@
     }
 
     const apiOptions = {
-      baseUrl,
+      baseUrl: BaseApiUrl,
       app_id: "asdfjjshdsafj23h2",
-      app_secret: "qerqwershdsafj23h2sdfaasdf",
       token,
       // keep for potential future usage/debugging
       activityId,

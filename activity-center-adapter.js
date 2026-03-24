@@ -113,7 +113,7 @@ export class WelfareCenterAdapter {
   }
 
   /**
-   * 触发插页式激励广告（task_checkin 签到看广告）
+   * 触发插页式激励广告（task_watch_ad 每日看视频）
    * 对应 Native: RewardedInterstitialAd，需要用户看完才算完成。
    */
   async triggerRewardAd(eventData = {}) {
@@ -122,7 +122,7 @@ export class WelfareCenterAdapter {
     }
 
     const defaultEventData = {
-      taskId: "task_checkin",
+      taskId: "task_watch_ad",
       ...eventData,
     };
 
@@ -136,7 +136,7 @@ export class WelfareCenterAdapter {
   }
 
   /**
-   * 触发插页式广告（task_watch_ad 每日看视频广告）
+   * 触发插页式广告（task_checkin 签到弹框看视频）
    * 对应 Native: InterstitialAd，广告关闭即视为完成。
    */
   async triggerInterstitialAd(eventData = {}) {
@@ -145,7 +145,7 @@ export class WelfareCenterAdapter {
     }
 
     const defaultEventData = {
-      taskId: "task_watch_ad",
+      taskId: "task_checkin",
       ...eventData,
     };
 

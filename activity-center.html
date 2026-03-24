@@ -186,7 +186,7 @@
     import { WelfareCenterBusiness as ActivityCenterBusiness } from "./activity-center-business.js";
     import { WelfareCenterAdapter as ActivityCenterAdapter } from "./activity-center-adapter.js";
     import { WelfareCenterUI as ActivityCenterUI } from "./activity-center-ui.js";
-    import { postAuthToken } from "./activity-api.js";
+    import { postAuthToken, BaseApiUrl } from "./activity-api.js";
     import * as logger from "./activity-logger.js";
 
     // ==================== H5 与 SDK 协商接口 ====================
@@ -204,9 +204,7 @@
 
     const channelTag = "";
 
-    // API baseUrl（写死）：指向“后端 API 服务”（8080）
-    // 8848 是 Web 静态服务地址（App 里打开 activity-center.html 的地址）。
-    const baseUrl = "http://10.0.33.63:8080";
+    // BaseApiUrl：后端 API（8080，见 activity-api.js）；与 H5 静态页 Web 地址 window.location.origin 区分
 
     // 用 URL token 或先通过 code 换取 access_token（用于所有后续接口调用）
     let token = tokenFromUrl;
@@ -227,7 +225,7 @@
 
     try {
       if (!token && code) {
-        const authRes = await postAuthToken({ baseUrl }, { code });
+        const authRes = await postAuthToken({ baseUrl: BaseApiUrl }, { code });
         token = authRes?.data?.access_token || "";
         // Cache token for in-app navigation (avoid reusing one-time code)
         try {
@@ -252,14 +250,15 @@
     }
 
     let apiOptions = {
-      baseUrl,
+      baseUrl: BaseApiUrl,
       app_id: "asdfjjshdsafj23h2",
-      app_secret: "qerqwershdsafj23h2sdfaasdf",
       token,
     };
 
-    /** 上次触发签到激励视频时的 taskId，用于回调无 taskId 时兜底 */
-    let lastRewardAdTaskId = "task_checkin";
+    /** 上次触发激励广告时的 taskId（用于回调无 taskId 时兜底） */
+    let lastRewardAdTaskId = "task_watch_ad";
+    /** 上次触发插页广告时的 taskId（用于回调无 taskId 时兜底） */
+    let lastInterstitialAdTaskId = "task_checkin";
     // 防止签到弹框“看视频”重复触发与重复领奖
     let checkinWatchAdInFlight = false;
     let checkinVideoClaimInFlight = false;
@@ -293,10 +292,11 @@
     // 3. 初始化 UI 层
     const ui = new ActivityCenterUI({
       onWatchAdClick: async () => {
-        // task_watch_ad 使用插页式广告（InterstitialAd），关闭即视为完成
+        // task_watch_ad 使用插页式激励广告（RewardedInterstitialAd）
         try {
           const adTaskStatus = business.getAdTaskStatus();
-          await adapter.triggerInterstitialAd({ taskId: "task_watch_ad", reward: adTaskStatus.reward });
+          lastRewardAdTaskId = "task_watch_ad";
+          await adapter.triggerRewardAd({ taskId: "task_watch_ad", reward: adTaskStatus.reward });
         } catch (error) {
           ui.showToast("Ad is not available", "error");
         }
@@ -359,15 +359,15 @@
         try {
           checkinWatchAdInFlight = true;
           ui.setSigninWatchLoading(true);
-          lastRewardAdTaskId = "task_checkin";
+          lastInterstitialAdTaskId = "task_checkin";
           const today = business.getTodayCheckinDay();
-          logger.log("[签到弹框看视频] triggerRewardAd", {
+          logger.log("[签到弹框看视频] triggerInterstitialAd", {
             taskId: "task_checkin",
             reward: today?.video_coin,
             hasToday: !!today,
           });
-          // task_checkin 使用插页式激励广告（RewardedInterstitialAd）
-          await adapter.triggerRewardAd({ taskId: "task_checkin", reward: today?.video_coin });
+          // task_checkin 使用插页式广告（InterstitialAd）
+          await adapter.triggerInterstitialAd({ taskId: "task_checkin", reward: today?.video_coin });
         } catch (e) {
           checkinWatchAdInFlight = false;
           ui.setSigninWatchLoading(false);
@@ -393,50 +393,54 @@
       const success = result.success;
       const message = result.message || "";
 
-      // ---- 插页式激励广告（task_checkin 签到看广告）----
+      // ---- 插页式激励广告（task_watch_ad 每日看视频）----
       if (eventType === window.ActivityBridgeHelper?.EventType?.REWARD_AD) {
-        // 只处理 task_checkin（签到看广告），需要用户完整看完才算
         const taskId = result.taskId || result.task_id || lastRewardAdTaskId;
         logger.log("[活动事件完成] reward_ad taskId=" + taskId + ", success=" + success);
-        if (success) {
-          const video_id = result.video_id ?? result.videoId ?? result.data?.video_id ?? "";
-          logger.log("[活动事件完成] 签到看视频领奖 video_id=" + video_id);
-          if (checkinVideoClaimInFlight) return;
-          checkinVideoClaimInFlight = true;
-          business
-            .claimCheckinVideoReward(apiOptions, video_id)
-            .finally(() => {
-              checkinVideoClaimInFlight = false;
-              checkinWatchAdInFlight = false;
-              ui.setSigninWatchLoading(false);
+        if (taskId === "task_watch_ad") {
+          if (success) {
+            const video_id = result.video_id ?? result.videoId ?? result.data?.video_id ?? "";
+            logger.log("[活动事件完成] 日常看视频领奖 video_id=" + video_id);
+            business.claimDailyVideoReward(apiOptions, video_id);
+            const adTaskStatus = business.getAdTaskStatus();
+            adapter.trackEvent("daily_video_completed", {
+              taskId: "task_watch_ad",
+              reward: adTaskStatus.reward,
+              success: true,
+              platform: adapter.getPlatform(),
             });
-          adapter.trackEvent("checkin_video_completed", { taskId, success: true });
-        } else {
-          checkinWatchAdInFlight = false;
-          ui.setSigninWatchLoading(false);
-          ui.showToast(message || "Ad not completed", "warning");
-          adapter.trackEvent("checkin_video_failed", { taskId, reason: message || "unknown" });
+          } else {
+            ui.showToast(message || "Ad not completed", "warning");
+            adapter.trackEvent("ad_watch_failed", { taskId: "task_watch_ad", reason: message || "unknown" });
+          }
         }
         return;
       }
 
-      // ---- 插页式广告（task_watch_ad 每日看视频）----
+      // ---- 插页式广告（task_checkin 签到弹框看视频）----
       if (eventType === window.ActivityBridgeHelper?.EventType?.INTERSTITIAL_AD) {
-        logger.log("[活动事件完成] interstitial_ad success=" + success);
-        if (success) {
-          const video_id = result.video_id ?? result.videoId ?? result.data?.video_id ?? "";
-          logger.log("[活动事件完成] 日常看视频领奖 video_id=" + video_id);
-          business.claimDailyVideoReward(apiOptions, video_id);
-          const adTaskStatus = business.getAdTaskStatus();
-          adapter.trackEvent("daily_video_completed", {
-            taskId: "task_watch_ad",
-            reward: adTaskStatus.reward,
-            success: true,
-            platform: adapter.getPlatform(),
-          });
-        } else {
-          ui.showToast(message || "Ad not completed", "warning");
-          adapter.trackEvent("ad_watch_failed", { taskId: "task_watch_ad", reason: message || "unknown" });
+        const taskId = result.taskId || result.task_id || lastInterstitialAdTaskId;
+        logger.log("[活动事件完成] interstitial_ad taskId=" + taskId + ", success=" + success);
+        if (taskId === "task_checkin") {
+          if (success) {
+            const video_id = result.video_id ?? result.videoId ?? result.data?.video_id ?? "";
+            logger.log("[活动事件完成] 签到看视频领奖 video_id=" + video_id);
+            if (checkinVideoClaimInFlight) return;
+            checkinVideoClaimInFlight = true;
+            business
+              .claimCheckinVideoReward(apiOptions, video_id)
+              .finally(() => {
+                checkinVideoClaimInFlight = false;
+                checkinWatchAdInFlight = false;
+                ui.setSigninWatchLoading(false);
+              });
+            adapter.trackEvent("checkin_video_completed", { taskId, success: true });
+          } else {
+            checkinWatchAdInFlight = false;
+            ui.setSigninWatchLoading(false);
+            ui.showToast(message || "Ad not completed", "warning");
+            adapter.trackEvent("checkin_video_failed", { taskId, reason: message || "unknown" });
+          }
         }
         return;
       }
@@ -448,8 +452,6 @@
     // 广告播放错误处理（H5-SDK 协商）
     window.onRewardedAdError = function (error) {
       logger.error("广告播放错误:", error);
-      checkinWatchAdInFlight = false;
-      ui.setSigninWatchLoading(false);
       ui.showToast("Ad failed to play, please try again", "error");
       adapter.trackEvent("ad_watch_error", {
         taskId: "task_watch_ad",

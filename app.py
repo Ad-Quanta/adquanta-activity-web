@@ -13,7 +13,7 @@ app = Flask(__name__)
 # 获取当前目录作为静态文件根目录
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-BACKEND_BASE_URL = os.environ.get("BACKEND_BASE_URL", "http://10.0.33.63:8080").rstrip("/")
+BACKEND_BASE_URL = os.environ.get("BACKEND_BASE_URL", "http://10.0.30.169:8080").rstrip("/")
 
 @app.route("/api/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 def proxy_api(path):

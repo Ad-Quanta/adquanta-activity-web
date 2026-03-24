@@ -5,10 +5,13 @@
  */
 import * as logger from "./activity-logger.js";
 
-// DEFAULT_BASE_URL（写死）：指向“后端 API 服务”（8080）
-const DEFAULT_BASE_URL = "http://10.0.33.63:8080";
+/** 后端 API 根地址（写死）；与 H5 静态页所在 Web 服务 origin 区分 */
+export const BaseApiUrl = "http://10.0.30.169:8080";
+
+function resolveApiBase(options = {}) {
+  return (options.baseUrl || BaseApiUrl).replace(/\/$/, "");
+}
 const DEFAULT_APP_ID = "asdfjjshdsafj23h2";
-const DEFAULT_APP_SECRET = "qerqwershdsafj23h2sdfaasdf";
 
 function buildAuthHeaders(options = {}) {
   const token = options.token ?? "";
@@ -86,12 +89,12 @@ async function loggedFetch(apiName, url, init = {}) {
 /**
  * 通过 code 换取 access_token（Web 端鉴权）
  * POST /api/v1/public/activity/auth/token
- * @param {Object} options - { baseUrl? }
+ * @param {Object} options - { baseUrl? } 覆盖默认 BaseApiUrl
  * @param {{ code: string }} body
  * @returns {Promise<{ code: number, data?: { success?: boolean, message?: string, access_token?: string, token_type?: string, expires_at?: number, expires_in?: number } }>}
  */
 export async function postAuthToken(options = {}, body = {}) {
-  const baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/$/, "");
+  const baseUrl = resolveApiBase(options);
   const url = `${baseUrl}/api/v1/public/activity/auth/token`;
   return loggedFetch("postAuthToken", url, {
     method: "POST",
@@ -103,33 +106,30 @@ export async function postAuthToken(options = {}, body = {}) {
 /**
  * 获取活动基础数据
  * @param {Object} options
- * @param {string} [options.baseUrl] - 接口 base URL，默认 http://10.0.33.63:8080
+ * @param {string} [options.baseUrl] - 接口 base URL，默认 BaseApiUrl
  * @param {string} [options.app_id]
- * @param {string} [options.app_secret]
  * @returns {Promise<{ code: number, data?: Object }>}
  */
 export async function getActivityInfo(options = {}) {
-  const baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/$/, "");
+  const baseUrl = resolveApiBase(options);
   const appId = options.app_id ?? DEFAULT_APP_ID;
-  const appSecret = options.app_secret ?? DEFAULT_APP_SECRET;
 
-  const url = `${baseUrl}/api/v1/ops/activity/info?app_id=${encodeURIComponent(appId)}&app_secret=${encodeURIComponent(appSecret)}`;
+  const url = `${baseUrl}/api/v1/ops/activity/info?app_id=${encodeURIComponent(appId)}`;
   return loggedFetch("getActivityInfo", url, { method: "GET", headers: { ...buildAuthHeaders(options) } });
 }
 
 /**
  * 签到
  * POST /api/v1/ops/activity/checkin
- * @param {Object} options - { baseUrl?, app_id?, app_secret? }
+ * @param {Object} options - { baseUrl?, app_id? }
  * @param {{ type?: "base" | "triple" }} body
  * @returns {Promise<{ code: number, data?: Object, message?: string }>}
  */
 export async function postCheckin(options = {}, body = {}) {
-  const baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/$/, "");
+  const baseUrl = resolveApiBase(options);
   const appId = options.app_id ?? DEFAULT_APP_ID;
-  const appSecret = options.app_secret ?? DEFAULT_APP_SECRET;
 
-  const url = `${baseUrl}/api/v1/ops/activity/checkin?app_id=${encodeURIComponent(appId)}&app_secret=${encodeURIComponent(appSecret)}`;
+  const url = `${baseUrl}/api/v1/ops/activity/checkin?app_id=${encodeURIComponent(appId)}`;
   return loggedFetch("postCheckin", url, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...buildAuthHeaders(options) },
@@ -141,13 +141,13 @@ export async function postCheckin(options = {}, body = {}) {
 
 /**
  * 签到看视频成功领取奖励
- * POST /api/v1/ops/activity/video（不传 app_id / app_secret）
+ * POST /api/v1/ops/activity/video（不传 app_id）
  * @param {Object} options - { baseUrl? }
  * @param {{ video_id: string }} body - 看完视频后的视频 id
  * @returns {Promise<{ code: number, data?: { success: boolean, coin: number, total_coin: number, message: string, today_watched: number, remain_count: number }, message?: string }>}
  */
 export async function postCheckinVideo(options = {}, body = {}) {
-  const baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/$/, "");
+  const baseUrl = resolveApiBase(options);
   const url = `${baseUrl}/api/v1/ops/activity/video`;
   return loggedFetch("postCheckinVideo", url, {
     method: "POST",
@@ -168,7 +168,7 @@ export async function postCheckinVideo(options = {}, body = {}) {
  * @returns {Promise<{ code: number, data?: any }>}
  */
 export async function getCharges(options = {}, params = {}) {
-  const baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/$/, "");
+  const baseUrl = resolveApiBase(options);
   const url = `${baseUrl}/api/v1/ops/activity/charges?${new URLSearchParams({
     country_code: params.country_code ?? "",
     phone_number: params.phone_number ?? "",
@@ -187,7 +187,7 @@ export async function getCharges(options = {}, params = {}) {
  * @returns {Promise<{ code: number, data?: any, message?: string }>}
  */
 export async function postChargeRedeem(options = {}, body = {}) {
-  const baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/$/, "");
+  const baseUrl = resolveApiBase(options);
   const url = `${baseUrl}/api/v1/ops/activity/charges`;
   return loggedFetch("postChargeRedeem", url, {
     method: "POST",
@@ -201,13 +201,30 @@ export async function postChargeRedeem(options = {}, body = {}) {
 }
 
 /**
+ * 查询充值订单状态
+ * GET /api/v1/ops/activity/charges/{distributor_ref}/status
+ * @param {Object} options - { baseUrl?, token? }
+ * @param {string} distributorRef
+ * @returns {Promise<{ code: number, data?: any, message?: string }>}
+ */
+export async function getChargeStatus(options = {}, distributorRef = "") {
+  const baseUrl = resolveApiBase(options);
+  const ref = encodeURIComponent(String(distributorRef || ""));
+  const url = `${baseUrl}/api/v1/ops/activity/charges/${ref}/status`;
+  return loggedFetch("getChargeStatus", url, {
+    method: "GET",
+    headers: { ...buildAuthHeaders(options) },
+  });
+}
+
+/**
  * 获取兑换记录
  * GET /api/v1/ops/activity/records
  * @param {Object} options - { baseUrl?, token? }
  * @returns {Promise<{ code: number, data?: Array }>}
  */
 export async function getActivityRecords(options = {}) {
-  const baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/$/, "");
+  const baseUrl = resolveApiBase(options);
   const url = `${baseUrl}/api/v1/ops/activity/records`;
   return loggedFetch("getActivityRecords", url, { method: "GET", headers: { ...buildAuthHeaders(options) } });
 }

@@ -57,7 +57,7 @@ export class WelfareCenterBusiness {
   /**
    * 加载活动基础数据（后端接口 /api/v1/ops/activity/info）
    * 成功则用接口数据更新资产与任务；失败则返回错误
-   * @param {Object} [apiOptions] - { baseUrl?, app_id?, app_secret? }
+   * @param {Object} [apiOptions] - { baseUrl? (后端 API 根，同 activity-api BaseApiUrl), app_id? }
    */
   async loadActivityInfo(apiOptions = {}) {
     try {
@@ -110,7 +110,7 @@ export class WelfareCenterBusiness {
 
   /**
    * 执行签到（调用后端 /api/v1/ops/activity/checkin），成功后刷新 activity info，返回弹框三处数据：coinFromCheckin、video_coin、multiplier
-   * @param {Object} [apiOptions] - { baseUrl?, app_id?, app_secret? }
+   * @param {Object} [apiOptions] - { baseUrl? (后端 API 根，同 activity-api BaseApiUrl), app_id? }
    * @returns {Promise<{ ok: boolean, coinFromCheckin?: number, video_coin?: number, multiplier?: number }>}
    */
   async doCheckin(apiOptions = {}) {
@@ -135,7 +135,7 @@ export class WelfareCenterBusiness {
 
   /**
    * 签到看视频成功领取奖励：调用 /api/v1/ops/activity/checkin(type=triple)，然后 tip message，再刷新基础信息
-   * @param {Object} [apiOptions] - { baseUrl?, app_id?, app_secret? }
+   * @param {Object} [apiOptions] - { baseUrl? (后端 API 根，同 activity-api BaseApiUrl), app_id? }
    * @param {string} [video_id] - 看完视频后得到的视频 id（来自 SDK 回调）
    * @returns {Promise<{ ok: boolean }>}
    */
@@ -164,7 +164,7 @@ export class WelfareCenterBusiness {
 
   /**
    * 日常看视频领奖：广告看完后调用 /api/v1/ops/activity/video，然后刷新基础信息
-   * @param {Object} [apiOptions] - { baseUrl?, app_id?, app_secret?, token? }
+   * @param {Object} [apiOptions] - { baseUrl? (后端 API 根，同 activity-api BaseApiUrl), app_id?, token? }
    * @param {string} [video_id]
    * @returns {Promise<{ ok: boolean }>}
    */

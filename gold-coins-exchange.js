@@ -1,4 +1,4 @@
-import { getActivityInfo, getActivityRecords, getCharges, postChargeRedeem } from "./activity-api.js";
+import { getActivityInfo, getActivityRecords, getCharges, postChargeRedeem, getChargeStatus } from "./activity-api.js";
 import * as logger from "./activity-logger.js";
 
 function escapeHtml(s) {
@@ -9,6 +9,10 @@ function escapeHtml(s) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // Full country calling code list (name + dial code)
@@ -294,7 +298,12 @@ export class GoldCoinsExchange {
     // 当前用户金币（未获取到服务端数据前缺省 0）
     this.userGoldCoins = 0;
 
-    // 话费选项（来自 /api/v1/ops/activity/charges，未加载则为 null）
+    // 话费选项（来自 /api/v1/ops/activity/charges）
+    /** @type {Array<{ provider_code: string, provider_name: string, logo_url?: string, products: Array<object> }> | null} */
+    this.chargesProviders = null;
+    /** 当前选中的运营商 key（优先 provider_code） */
+    this.selectedProviderCode = null;
+    /** 当前运营商下的面额列表（与原先 flattened 单项结构一致） */
     this.chargesOptions = null;
     this.chargesLoaded = false;
     this.chargesLoading = false;
@@ -303,6 +312,8 @@ export class GoldCoinsExchange {
 
     // Redeem request lock (prevent multi-click / multi-request)
     this.exchangeLoading = false;
+    this.lastSubmitAt = 0;
+    this.submitDebounceMs = 800;
 
     // 基础信息接口返回的 records（用于兑换记录列表与「查看全部」）
     this.records = [];
@@ -317,6 +328,8 @@ export class GoldCoinsExchange {
       countryCodeEnum: "IN",
       countryCodeUserSelected: true,
       operator: "-",
+      /** 是否已明确选中运营商（与 state.operator 展示名配合） */
+      operatorSelected: false,
       amount: null,
       // Flattened product selected from /charges
       // { charges_id(sku_code), amount, amount_text, spend_coin, provider_name, receive_currency }
@@ -336,7 +349,7 @@ export class GoldCoinsExchange {
       countryCodeSearch: document.getElementById("countryCodeSearch"),
       countryCodeList: document.getElementById("countryCodeList"),
       operatorGrid: document.getElementById("operatorGrid"),
-      operatorLabel: document.getElementById("operatorLabel"),
+      operatorGrid: document.getElementById("operatorGrid"),
       operatorSection: document.getElementById("operatorSection"),
       amountSection: document.getElementById("amountSection"),
       amountGrid: document.getElementById("amountGrid"),
@@ -352,7 +365,6 @@ export class GoldCoinsExchange {
    */
   async init() {
     if (this.$.countryCodeBtn) this.$.countryCodeBtn.textContent = this.state.countryCode;
-    if (this.$.operatorLabel) this.$.operatorLabel.textContent = this.state.operator || "-";
     this.updateUserGoldCoinsView();
     this.initHistory();
     this.bindEvents();
@@ -368,16 +380,40 @@ export class GoldCoinsExchange {
   }
 
   resetChargesUI() {
+    this.chargesProviders = null;
+    this.selectedProviderCode = null;
     this.chargesOptions = null;
     this.chargesLoaded = false;
     this.chargesLoading = false;
     this.lastChargesMobile = "";
     this.state.amount = null;
     this.state.selectedCharge = null;
-    if (this.$.operatorLabel) this.$.operatorLabel.textContent = "-";
+    this.state.operator = "-";
+    this.state.operatorSelected = false;
+    if (this.$.operatorGrid) this.$.operatorGrid.innerHTML = "";
     if (this.$.amountGrid) this.$.amountGrid.innerHTML = "";
     this.setChargesUIVisible(false);
     this.updateRedeemState();
+  }
+
+  resetRedeemPageToInitialState() {
+    this.state.mobile = "";
+    this.state.operator = "-";
+    this.state.operatorSelected = false;
+    this.state.amount = null;
+    this.state.selectedCharge = null;
+    if (this.$.inputMobile) this.$.inputMobile.value = "";
+    if (this.$.operatorGrid) this.$.operatorGrid.innerHTML = "";
+    if (this.$.amountGrid) this.$.amountGrid.innerHTML = "";
+    this.resetChargesUI();
+    if (this.$.redeemSummary) {
+      this.$.redeemSummary.textContent = "Select amount to see coins required";
+    }
+    if (this.$.btnRedeem) {
+      this.$.btnRedeem.disabled = true;
+      this.$.btnRedeem.classList.add("redeem-primary-btn--disabled");
+      this.$.btnRedeem.textContent = this.$.btnRedeem.dataset.originalText || "Redeem Now";
+    }
   }
 
   maybeLoadChargesForMobile(mobile) {
@@ -522,39 +558,52 @@ export class GoldCoinsExchange {
       // New API: { code:200, data:{ country, currency, providers:[{provider_name, products:[{sku_code, receive_value, receive_currency, spend_coin, available}]}] } }
       const providers = res?.data?.providers;
       if (res.code === 200 && Array.isArray(providers) && providers.length > 0) {
-        const flattened = providers.flatMap((p) => {
-          const providerName = p?.provider_name ?? "";
-          const products = Array.isArray(p?.products) ? p.products : [];
-          return products
-            .filter((prod) => prod && prod.available === true)
-            .map((prod) => ({
-              charges_id: prod.sku_code ?? "",
-              amount: Number(prod.receive_value ?? 0),
-              amount_text: `${prod.receive_value ?? 0} ${prod.receive_currency ?? ""}`.trim(),
-              spend_coin: Number(prod.spend_coin ?? 0),
-              provider_name: providerName,
-              receive_currency: prod.receive_currency ?? "",
-              send_value: prod.send_value ?? "",
-            }));
-        });
+        const chargesProviders = providers
+          .map((p) => {
+            const providerName = String(p?.provider_name ?? "").trim();
+            const providerCode = String(p?.provider_code ?? providerName ?? "").trim() || providerName;
+            const products = Array.isArray(p?.products) ? p.products : [];
+            const items = products
+              .filter((prod) => prod && prod.available === true)
+              .map((prod) => ({
+                charges_id: prod.sku_code ?? "",
+                amount: Number(prod.receive_value ?? 0),
+                amount_text: `${prod.receive_value ?? 0} ${prod.receive_currency ?? ""}`.trim(),
+                spend_coin: Number(prod.spend_coin ?? 0),
+                provider_name: providerName,
+                provider_code: providerCode,
+                receive_currency: prod.receive_currency ?? "",
+                send_value: prod.send_value ?? "",
+              }))
+              .filter((x) => x.charges_id && Number.isFinite(x.amount))
+              .sort((a, b) => a.amount - b.amount);
+            return {
+              provider_code: providerCode,
+              provider_name: providerName || providerCode,
+              logo_url: p?.logo_url,
+              products: items,
+            };
+          })
+          .filter((row) => row.products.length > 0);
 
-        // Remove empty / NaN and sort by amount ascending
-        const cleaned = flattened.filter((x) => x.charges_id && Number.isFinite(x.amount)).sort((a, b) => a.amount - b.amount);
-
-        if (!cleaned.length) {
+        if (!chargesProviders.length) {
           this.resetChargesUI();
           return;
         }
 
-        // Operator label: show provider of the first available option
-        this.state.operator = cleaned[0]?.provider_name || "-";
-        if (this.$.operatorLabel) this.$.operatorLabel.textContent = this.state.operator;
+        this.chargesProviders = chargesProviders;
+        this.selectedProviderCode = null;
+        this.chargesOptions = null;
+        this.state.amount = null;
+        this.state.selectedCharge = null;
+        this.state.operator = "-";
+        this.state.operatorSelected = false;
 
-        this.chargesOptions = cleaned;
-        this.renderAmountGrid(cleaned);
+        this.renderOperatorGrid(chargesProviders);
+        this.renderAmountGrid([]);
         this.chargesLoaded = true;
         this.setChargesUIVisible(true);
-        logger.log("[获取充值信息] 使用接口数据渲染面额\n" + JSON.stringify(res.data, null, 2));
+        logger.log("[获取充值信息] 使用接口数据渲染运营商与面额\n" + JSON.stringify(res.data, null, 2));
       } else {
         this.resetChargesUI();
       }
@@ -571,17 +620,64 @@ export class GoldCoinsExchange {
    */
   renderAmountGrid(options) {
     if (!this.$.amountGrid) return;
-    this.$.amountGrid.innerHTML = options
+    const list = Array.isArray(options) ? options : [];
+    this.$.amountGrid.innerHTML = list
       .map(
         (o) =>
           `<button class="redeem-amount-btn" data-amount="${o.amount}" data-spend-coin="${o.spend_coin}" data-charges-id="${escapeHtml(
             o.charges_id
-          )}">${escapeHtml(o.amount_text || String(o.amount))}</button>`
+          )}">
+            <span class="redeem-amount-main">${escapeHtml(o.amount_text || String(o.amount))}</span>
+            <span class="redeem-amount-cost">
+              <img src="./icons/gold_coin.svg" alt="" class="redeem-amount-coin-icon" />
+              <span>${Number(o.spend_coin ?? 0)}</span>
+            </span>
+          </button>`
       )
       .join("");
     this.state.amount = null;
     this.state.selectedCharge = null;
     this.updateRedeemState();
+  }
+
+  /**
+   * 渲染全部运营商；选中态由 selectedProviderCode 决定
+   * @param {Array<{ provider_code: string, provider_name: string }>} providers
+   */
+  renderOperatorGrid(providers) {
+    if (!this.$.operatorGrid) return;
+    const list = Array.isArray(providers) ? providers : [];
+    this.$.operatorGrid.innerHTML = list
+      .map((p) => {
+        const code = String(p.provider_code ?? "");
+        const name = String(p.provider_name ?? code ?? "-");
+        const active = code && code === this.selectedProviderCode ? " redeem-operator-btn--active" : "";
+        return `<button type="button" class="redeem-operator-btn${active}" data-provider-code="${escapeHtml(code)}">${escapeHtml(
+          name
+        )}</button>`;
+      })
+      .join("");
+  }
+
+  /**
+   * 选中运营商：更新该运营商对应的面额列表（切换运营商会清空已选面额）
+   * @param {string} providerCode
+   */
+  selectProvider(providerCode) {
+    const code = String(providerCode || "");
+    if (!code || !Array.isArray(this.chargesProviders)) return;
+    const row = this.chargesProviders.find((x) => String(x.provider_code) === code);
+    if (!row || !row.products?.length) return;
+
+    this.selectedProviderCode = code;
+    this.state.operator = row.provider_name || code;
+    this.state.operatorSelected = true;
+    this.chargesOptions = row.products;
+    this.state.amount = null;
+    this.state.selectedCharge = null;
+
+    this.renderOperatorGrid(this.chargesProviders);
+    this.renderAmountGrid(row.products);
   }
 
   /**
@@ -620,6 +716,7 @@ export class GoldCoinsExchange {
 
     const goldCoins = this.getRequiredGoldCoins();
     const validMobile = typeof this.state.mobile === "string" && /^\d{6,15}$/.test(this.state.mobile);
+    const hasOperator = !!this.selectedProviderCode && this.state.operatorSelected === true;
     const hasAmount = !!this.state.amount;
     const canAfford = goldCoins > 0 && this.userGoldCoins >= goldCoins;
 
@@ -637,14 +734,28 @@ export class GoldCoinsExchange {
       return;
     }
 
-    if (validMobile && hasAmount) {
-      const label = this.state.selectedCharge?.amount_text || String(this.state.amount ?? "");
-      this.$.redeemSummary.textContent = `Use ${goldCoins} coins to top up ${label} for ${this.state.countryCode} ${this.state.mobile}`;
-    } else {
-      this.$.redeemSummary.textContent = "Enter mobile number and select amount";
+    if (validMobile && this.chargesLoaded && !hasOperator) {
+      this.$.redeemSummary.textContent = "Select an operator";
+      this.$.btnRedeem.disabled = true;
+      this.$.btnRedeem.classList.add("redeem-primary-btn--disabled");
+      return;
     }
 
-    const canRedeem = validMobile && hasAmount && canAfford;
+    if (validMobile && hasOperator && !hasAmount) {
+      this.$.redeemSummary.textContent = "Select top-up amount";
+      this.$.btnRedeem.disabled = true;
+      this.$.btnRedeem.classList.add("redeem-primary-btn--disabled");
+      return;
+    }
+
+    if (validMobile && hasOperator && hasAmount) {
+      const label = this.state.selectedCharge?.amount_text || String(this.state.amount ?? "");
+      this.$.redeemSummary.textContent = `Use ${goldCoins} coins to top up ${label} (${this.state.operator}) for ${this.state.countryCode} ${this.state.mobile}`;
+    } else {
+      this.$.redeemSummary.textContent = "Enter mobile number, then select operator and amount";
+    }
+
+    const canRedeem = validMobile && hasOperator && hasAmount && canAfford;
     this.$.btnRedeem.disabled = !canRedeem;
     if (canRedeem) {
       this.$.btnRedeem.classList.remove("redeem-primary-btn--disabled");
@@ -674,7 +785,10 @@ export class GoldCoinsExchange {
    * 执行兑换
    */
   async performExchange() {
+    const now = Date.now();
     if (this.exchangeLoading) return;
+    if (now - this.lastSubmitAt < this.submitDebounceMs) return;
+    this.lastSubmitAt = now;
 
     const product = this.buildRedeemProduct();
     if (!product) return;
@@ -683,6 +797,12 @@ export class GoldCoinsExchange {
     // 检查金币是否足够
     if (this.userGoldCoins < coins) {
       this.config.onExchangeFailed("Not enough coins to redeem");
+      return;
+    }
+
+    const amountLabel = this.state.selectedCharge?.amount_text || String(this.state.amount ?? "");
+    const confirmed = confirm(`Are you sure you want to use ${coins} coins to redeem ${amountLabel} top-up?`);
+    if (!confirmed) {
       return;
     }
 
@@ -726,24 +846,76 @@ export class GoldCoinsExchange {
         this.config.onExchangeFailed(msg || "Redemption failed, please try again");
         return;
       }
-
-      // 回调成功
-      this.config.onExchangeSuccess(product);
-
-      // 刷新余额与兑换记录（来源：/activity/info）
-      await this.loadActivityInfo();
-
-      // 重置面额选择与按钮状态
-      this.state.amount = null;
-      this.state.selectedCharge = null;
-      if (this.$.amountGrid) {
-        this.$.amountGrid.querySelectorAll(".redeem-amount-btn").forEach((el) => el.classList.remove("redeem-amount-btn--active"));
+      if (res?.data?.success !== true) {
+        this.config.onExchangeFailed(msg || "Submit failed, please try again");
+        return;
       }
-      this.updateRedeemState();
+
+      const distributorRef = String(res?.data?.distributor_ref || "").trim();
+      if (!distributorRef) {
+        this.config.onExchangeFailed("Missing distributor_ref");
+        return;
+      }
+
+      // Submit phase ends here: no longer lock button by polling state.
+      this.exchangeLoading = false;
+      // 订单创建成功后，立即把兑换页重置到初始状态；轮询在后台继续。
+      this.resetRedeemPageToInitialState();
+
+      let finalStatus = "";
+      let finalMsg = "";
+      while (true) {
+        await sleep(4000);
+        let statusRes;
+        try {
+          statusRes = await getChargeStatus(this.config.apiOptions, distributorRef);
+        } catch (e) {
+          finalStatus = "error";
+          finalMsg = e?.message || "Query order status failed";
+          break;
+        }
+
+        finalMsg = statusRes?.data?.message || statusRes?.message || "";
+        if (statusRes?.code !== 200) {
+          finalStatus = "error";
+          if (!finalMsg) finalMsg = "Order status query failed";
+          break;
+        }
+        if (statusRes?.data?.success !== true) {
+          finalStatus = "error";
+          if (!finalMsg) finalMsg = "Order processing failed";
+          break;
+        }
+
+        const status = String(statusRes?.data?.status || "").toLowerCase();
+        if (status === "success") {
+          finalStatus = "success";
+          break;
+        }
+        if (status === "failed") {
+          finalStatus = "failed";
+          if (!finalMsg) finalMsg = "Top-up failed";
+          break;
+        }
+      }
+
+      if (finalStatus === "success") {
+        this.config.onExchangeSuccess(product);
+      } else {
+        this.config.onExchangeFailed(finalMsg || "Redemption failed, please try again");
+      }
     } catch (error) {
       logger.error("Redeem top-up failed", error);
       this.config.onExchangeFailed(error?.message || "Redemption failed, please try again");
     } finally {
+      // 轮询结束后，更新兑换历史与金币
+      try {
+        await this.loadRecords();
+      } catch (_) {}
+      try {
+        await this.loadActivityInfo();
+      } catch (_) {}
+
       this.exchangeLoading = false;
       if (this.$.btnRedeem) {
         this.$.btnRedeem.textContent = this.$.btnRedeem.dataset.originalText || "Redeem Now";
@@ -778,7 +950,16 @@ export class GoldCoinsExchange {
       });
     }
 
-    // Operator is single value from /charges; no selection UI
+    // 运营商：展示全部，选中后只更新当前运营商的面额列表（不再随面额切换运营商）
+    if (this.$.operatorGrid) {
+      this.$.operatorGrid.addEventListener("click", (e) => {
+        const btn = e.target.closest(".redeem-operator-btn");
+        if (!btn) return;
+        const code = btn.getAttribute("data-provider-code");
+        if (!code) return;
+        this.selectProvider(code);
+      });
+    }
 
     // 面额选择
     if (this.$.amountGrid) {
@@ -800,12 +981,9 @@ export class GoldCoinsExchange {
             spend_coin: spendCoin,
             amount_text: `${amount}`,
             provider_name: this.state.operator || "-",
+            provider_code: this.selectedProviderCode || "",
             send_value: "",
           };
-        }
-        if (this.state.selectedCharge?.provider_name) {
-          this.state.operator = this.state.selectedCharge.provider_name;
-          if (this.$.operatorLabel) this.$.operatorLabel.textContent = this.state.operator;
         }
 
         this.$.amountGrid

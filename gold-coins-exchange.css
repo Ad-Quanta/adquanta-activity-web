@@ -695,14 +695,41 @@ body {
 }
 
 .redeem-amount-btn {
-  height: 40px;
+  height: 58px;
   border-radius: 10px;
   border: 1px solid #e5e7eb;
   background-color: #ffffff;
-  font-size: 13px;
-  font-weight: 600;
   color: #374151;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-evenly;
+  padding: 6px 4px;
+}
+
+.redeem-amount-main {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.redeem-amount-cost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.2;
+  color: #6b7280;
+}
+
+.redeem-amount-coin-icon {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
 }
 
 .redeem-amount-btn--active {
