@@ -19,12 +19,10 @@ export class WelfareCenterUI {
       spinWheelClose: document.getElementById("spinWheelClose"),
       spinWheelDisk: document.getElementById("spinWheelDisk"),
       spinWheelSpinBtn: document.getElementById("spinWheelSpinBtn"),
-      spinWheelAvailable: document.getElementById("spinWheelAvailable"),
       spinWheelSubtitle: document.getElementById("spinWheelSubtitle"),
       spinRewardModal: document.getElementById("spinRewardModal"),
       spinRewardClose: document.getElementById("spinRewardClose"),
       spinRewardCoins: document.getElementById("spinRewardCoins"),
-      spinRewardWatchAgain: document.getElementById("spinRewardWatchAgain"),
       userGreeting: document.getElementById("userGreeting"),
       toast: document.getElementById("toast"),
       // 兑换入口按钮（命名上复用 withdrawBtn，实际对应金币兑换）
@@ -62,6 +60,10 @@ export class WelfareCenterUI {
     // Avoid showing a "0 / 0" placeholder flicker before the first updateTasks() run.
     const progressVideos = document.getElementById("ad-progress-videos");
     if (progressVideos) progressVideos.textContent = "0 Spins";
+    // Turntable bottom-button state machine:
+    // - needsWatch=true  => show "Watch to Spin/Watch to Spin Again"
+    // - needsWatch=false => show "Spin Now" and allow wheel spin
+    this._turntableNeedsWatch = true;
     this.spinRotation = 0;
     this._spinInFlight = false;
     this._waitingAdForSpin = false;
@@ -94,6 +96,28 @@ export class WelfareCenterUI {
     return `activity_turntable_available_${y}${m}${day}`;
   }
 
+  getTodayTurntableDailyFirstShownKey() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `activity_turntable_daily_first_shown_${y}${m}${day}`;
+  }
+
+  isTodayTurntableDailyFirstShown() {
+    try {
+      return localStorage.getItem(this.getTodayTurntableDailyFirstShownKey()) === "1";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  markTodayTurntableDailyFirstShown() {
+    try {
+      localStorage.setItem(this.getTodayTurntableDailyFirstShownKey(), "1");
+    } catch (_) {}
+  }
+
   loadSpinAvailableState() {
     try {
       const raw = localStorage.getItem(this.getTodaySpinAvailableKey()) || "0";
@@ -124,7 +148,6 @@ export class WelfareCenterUI {
     if (!Number.isFinite(inc) || inc <= 0) return;
     this.currentSpinAvailable += Math.floor(inc);
     this.clampSpinCountByLimit();
-    this.updateSpinAvailableText();
   }
 
   consumeSpinChance(delta = 1) {
@@ -132,7 +155,6 @@ export class WelfareCenterUI {
     if (!Number.isFinite(dec) || dec <= 0) return;
     this.currentSpinAvailable = Math.max(0, this.currentSpinAvailable - Math.floor(dec));
     this.saveSpinAvailableState();
-    this.updateSpinAvailableText();
   }
 
   renderTurntableFromCoins(rouletteCoins = []) {
@@ -155,7 +177,6 @@ export class WelfareCenterUI {
     const coins = task?.roulette?.roulette_coins;
     this.renderTurntableFromCoins(coins);
     this.clampSpinCountByLimit();
-    this.updateSpinAvailableText();
   }
 
   isWaitingAdForSpin() {
@@ -166,7 +187,37 @@ export class WelfareCenterUI {
     if (!this._waitingAdForSpin) return;
     this._waitingAdForSpin = false;
     this.addSpinChance(1);
-    await this.spinWheel();
+    // After watching ad successfully, user must click Spin Now manually.
+    this._turntableNeedsWatch = false;
+    if (this.elements.spinWheelSpinBtn) {
+      this.elements.spinWheelSpinBtn.disabled = false;
+      this.elements.spinWheelSpinBtn.textContent = "Spin Now";
+    }
+    if (this.elements.spinWheelSubtitle) {
+      this.elements.spinWheelSubtitle.textContent = "Tap Spin Now to spin your reward!";
+    }
+  }
+
+  /**
+   * Bottom button (tc-spin-now-btn) click handler:
+   * - Watch mode: trigger reward ad and wait for SDK callback
+   * - Spin mode: execute wheel rotation (consume 1 spin chance)
+   */
+  handleSpinWheelBottomClick() {
+    const btn = this.elements.spinWheelSpinBtn;
+    if (btn && btn.disabled) return;
+
+    if (this._turntableNeedsWatch) {
+      if (this._waitingAdForSpin) return;
+      this._waitingAdForSpin = true;
+      if (btn) btn.disabled = true;
+      this.config.onWatchAdClick();
+      return;
+    }
+
+    if (btn) btn.disabled = true;
+    // Execute wheel rotation and consume 1 spin chance.
+    this.spinWheel();
   }
 
   /**
@@ -199,7 +250,6 @@ export class WelfareCenterUI {
       this.syncTurntableFromTask(task);
       this.currentSpinAvailable = Math.min(this.currentSpinAvailable, completed);
       this.saveSpinAvailableState();
-      this.updateSpinAvailableText();
 
       const rewardDisplay =
         nextCoin != null ? String(nextCoin) : String(task.reward ?? 0);
@@ -243,23 +293,33 @@ export class WelfareCenterUI {
     }
   }
 
-  updateSpinAvailableText() {
-    if (this.elements.spinWheelAvailable) {
-      this.elements.spinWheelAvailable.textContent = `${this.currentSpinAvailable} FREE SPINS AVAILABLE`;
-    }
-  }
-
   async showSpinWheel() {
-    this.updateSpinAvailableText();
+    // Daily-first behavior: force "Watch to Spin" on the first modal open each day.
+    const forceDailyFirst = !this.isTodayTurntableDailyFirstShown();
+    if (forceDailyFirst) {
+      this.markTodayTurntableDailyFirstShown();
+      this._turntableNeedsWatch = true;
+    }
+
+    if (this.elements.spinWheelSpinBtn) {
+      this.elements.spinWheelSpinBtn.disabled = false;
+      this.elements.spinWheelSpinBtn.textContent = forceDailyFirst
+        ? "Watch to Spin"
+        : this._turntableNeedsWatch
+          ? "Watch to Spin Again"
+          : "Spin Now";
+    }
+
     try {
       await this.config.onSpinWheelOpen();
     } catch (_) {}
+
     if (this.elements.spinWheelSubtitle) {
-      this.elements.spinWheelSubtitle.textContent =
-        this.currentSpinAvailable > 0
-          ? "You earned spin chances from Daily Video Tasks."
-          : "Tap Spin Now to watch a video and earn a spin chance.";
+      this.elements.spinWheelSubtitle.textContent = this._turntableNeedsWatch
+        ? "Tap Watch to Spin to watch a video and earn a spin chance."
+        : "Tap Spin Now to spin your reward!";
     }
+
     if (this.elements.spinWheelModal) {
       this.elements.spinWheelModal.style.display = "flex";
     }
@@ -274,11 +334,20 @@ export class WelfareCenterUI {
   async spinWheel() {
     if (this._spinInFlight) return;
     if (this.currentSpinAvailable <= 0) {
+      // Safety fallback: no spin chances locally, go back to watch mode.
+      this._turntableNeedsWatch = true;
       this._waitingAdForSpin = true;
+      if (this.elements.spinWheelSpinBtn) {
+        this.elements.spinWheelSpinBtn.disabled = true;
+        this.elements.spinWheelSpinBtn.textContent = "Watch to Spin Again";
+      }
       this.config.onWatchAdClick();
       return;
     }
     this._spinInFlight = true;
+    if (this.elements.spinWheelSpinBtn) {
+      this.elements.spinWheelSpinBtn.disabled = true;
+    }
     let prize = 0;
     try {
       const result = await this.config.onSpinRequest();
@@ -362,6 +431,18 @@ export class WelfareCenterUI {
   hideSpinRewardDialog() {
     if (this.elements.spinRewardModal) {
       this.elements.spinRewardModal.style.display = "none";
+    }
+  }
+
+  handleSpinRewardDialogClosed() {
+    // After the reward dialog is dismissed, user must watch ad again.
+    this._turntableNeedsWatch = true;
+    if (this.elements.spinWheelSpinBtn) {
+      this.elements.spinWheelSpinBtn.disabled = false;
+      this.elements.spinWheelSpinBtn.textContent = "Watch to Spin Again";
+    }
+    if (this.elements.spinWheelSubtitle) {
+      this.elements.spinWheelSubtitle.textContent = "Tap Watch to Spin Again to watch a video and earn a spin chance.";
     }
   }
 
@@ -607,20 +688,20 @@ export class WelfareCenterUI {
       });
     }
     if (this.elements.spinWheelSpinBtn) {
-      this.elements.spinWheelSpinBtn.addEventListener("click", () => { this.spinWheel(); });
+      this.elements.spinWheelSpinBtn.addEventListener("click", () => this.handleSpinWheelBottomClick());
     }
     if (this.elements.spinRewardClose) {
-      this.elements.spinRewardClose.addEventListener("click", () => this.hideSpinRewardDialog());
+      this.elements.spinRewardClose.addEventListener("click", () => {
+        this.hideSpinRewardDialog();
+        this.handleSpinRewardDialogClosed();
+      });
     }
     if (this.elements.spinRewardModal) {
       this.elements.spinRewardModal.addEventListener("click", (e) => {
-        if (e.target === this.elements.spinRewardModal) this.hideSpinRewardDialog();
-      });
-    }
-    if (this.elements.spinRewardWatchAgain) {
-      this.elements.spinRewardWatchAgain.addEventListener("click", () => {
-        this.hideSpinRewardDialog();
-        this.config.onWatchAdClick();
+        if (e.target === this.elements.spinRewardModal) {
+          this.hideSpinRewardDialog();
+          this.handleSpinRewardDialogClosed();
+        }
       });
     }
 
