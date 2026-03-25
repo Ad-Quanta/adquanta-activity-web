@@ -850,6 +850,72 @@ export class GoldCoinsExchange {
   /**
    * 执行兑换
    */
+  showExchangeConfirmModal({ coins, amountLabel }) {
+    const modal = document.getElementById("exchangeModal");
+    if (!modal) {
+      // Fallback: keep behavior safe if modal markup missing.
+      return Promise.resolve(
+        window.confirm(`Use ${coins} Gold Coins to redeem ${amountLabel || "-"} top-up?`)
+      );
+    }
+
+    const previewName = document.getElementById("previewName");
+    const previewPoints = document.getElementById("previewPoints");
+    const confirmPoints = document.getElementById("confirmPoints");
+    const confirmName = document.getElementById("confirmName");
+
+    const closeBtn = document.getElementById("modalCloseBtn");
+    const cancelBtn = document.getElementById("cancelBtn");
+    const confirmBtn = document.getElementById("confirmBtn");
+
+    if (previewName) previewName.textContent = `Top-up ${amountLabel || "-"}`;
+    if (previewPoints) previewPoints.textContent = `${coins} coins`;
+    if (confirmPoints) confirmPoints.textContent = String(coins ?? 0);
+    if (confirmName) confirmName.textContent = String(amountLabel || "-");
+
+    // Show modal.
+    modal.style.display = "flex";
+
+    let resetOverflow = () => {};
+    const cleanup = () => {
+      modal.style.display = "none";
+      if (closeBtn) closeBtn.onclick = null;
+      if (cancelBtn) cancelBtn.onclick = null;
+      if (confirmBtn) confirmBtn.onclick = null;
+      try {
+        resetOverflow();
+      } catch (_) {}
+    };
+
+    return new Promise((resolve) => {
+      if (closeBtn)
+        closeBtn.onclick = () => {
+          cleanup();
+          resolve(false);
+        };
+
+      if (cancelBtn)
+        cancelBtn.onclick = () => {
+          cleanup();
+          resolve(false);
+        };
+
+      if (confirmBtn)
+        confirmBtn.onclick = () => {
+          cleanup();
+          resolve(true);
+        };
+
+      // Prevent background scroll when modal open.
+      try {
+        document.body.style.overflow = "hidden";
+        resetOverflow = () => {
+          document.body.style.overflow = "";
+        };
+      } catch (_) {}
+    });
+  }
+
   async performExchange() {
     const now = Date.now();
     if (this.exchangeLoading) return;
@@ -866,11 +932,29 @@ export class GoldCoinsExchange {
       return;
     }
 
-    const amountLabel = this.state.selectedCharge?.amount_text || String(this.state.amount ?? "");
-    const confirmed = confirm(`Are you sure you want to use ${coins} coins to redeem ${amountLabel} top-up?`);
-    if (!confirmed) {
-      return;
+    const amountLabelRaw = this.state.selectedCharge?.amount_text;
+    let amountLabel = "";
+    if (typeof amountLabelRaw === "string") {
+      amountLabel = amountLabelRaw;
+    } else if (amountLabelRaw && typeof amountLabelRaw === "object") {
+      // Avoid "[object Object]" when backend sends an object unexpectedly.
+      const v = amountLabelRaw.receive_value ?? amountLabelRaw.value ?? amountLabelRaw.amount ?? "";
+      const c =
+        amountLabelRaw.receive_currency ?? amountLabelRaw.currency ?? amountLabelRaw.unit ?? amountLabelRaw.amount_currency ?? "";
+      amountLabel = `${v} ${c}`.trim();
     }
+    if (!amountLabel || amountLabel === "[object Object]") {
+      // Fallback to current selection amount.
+      const selected = this.state.selectedCharge || {};
+      const currency = selected.receive_currency ?? selected.currency ?? "";
+      amountLabel = (typeof this.state.amount === "number" ? String(this.state.amount) : String(this.state.amount ?? "")).trim();
+      if (currency && amountLabel) amountLabel = `${amountLabel} ${currency}`.trim();
+    }
+    const confirmed = await this.showExchangeConfirmModal({
+      coins,
+      amountLabel,
+    });
+    if (!confirmed) return;
 
     try {
       this.exchangeLoading = true;

@@ -257,7 +257,19 @@ async function main() {
     window.location.href = `./activity-center.html?${p.toString()}`;
   };
 
-  if (backBtn) backBtn.addEventListener("click", goBack);
+  // Left-top back arrow should behave like a normal back navigation (previous page).
+  const backToPrevPage = () => {
+    try {
+      if (window.history && window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+    } catch (_) {}
+    // Fallback if history is not available (or length too short).
+    goBack();
+  };
+
+  if (backBtn) backBtn.addEventListener("click", backToPrevPage);
 
   if (helpCloseBtn) helpCloseBtn.addEventListener("click", () => closeHelpModal());
   if (helpCancelBtn) helpCancelBtn.addEventListener("click", () => closeHelpModal());

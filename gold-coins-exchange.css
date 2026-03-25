@@ -336,6 +336,17 @@ body {
   border-radius: 12px;
 }
 
+/* Confirm modal (redeem) simplification:
+ * Keep only title + message text, hide the middle preview rectangle. */
+.modal#exchangeModal .product-preview {
+  display: none !important;
+}
+
+/* When preview is hidden, remove extra spacing so text sits correctly. */
+.modal#exchangeModal .modal-message {
+  margin-top: 6px;
+}
+
 .preview-icon {
   font-size: 48px;
   width: 64px;
