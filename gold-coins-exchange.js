@@ -534,11 +534,11 @@ export class GoldCoinsExchange {
         let statusLabel = "Success";
         if (isProcessing) {
           iconClass = "redeem-history-icon--processing";
-          iconText = "...";
+          iconText = "⏳";
           statusLabel = "Processing";
         } else if (statusRaw === "fail" || statusRaw === "failed" || statusRaw === "error") {
           iconClass = "redeem-history-icon--fail";
-          iconText = "x";
+          iconText = "✕";
           statusLabel = "Failed";
         }
         const sendValue = r.send_value ?? r.sendValue ?? "";
@@ -562,6 +562,7 @@ export class GoldCoinsExchange {
         const businessId = r.business_id ?? r.businessId ?? r.distributor_ref ?? r.distributorRef ?? "";
         const phoneNumber = r.phone_number ?? r.phone ?? "";
         const skuCode = r.sku_code ?? "";
+        const phoneHtml = phoneNumber ? `<div class="redeem-history-phone">${escapeHtml(phoneNumber)}</div>` : "";
         return `
         <div class="redeem-history-item redeem-history-item--clickable"
              data-open-status="1"
@@ -574,13 +575,19 @@ export class GoldCoinsExchange {
           <div class="redeem-history-icon ${iconClass}">${iconText}</div>
           <div class="redeem-history-main">
             <div class="redeem-history-title">${escapeHtml(skuCode ? `Top-up ${skuCode}` : "Redeem")}</div>
+            ${phoneHtml}
             <div class="redeem-history-subtitle">
               ${escapeHtml(this.formatRecordDate(r.created_at))} • ${escapeHtml(statusLabel)}
             </div>
           </div>
           <div class="redeem-history-amount">
             -${coinNum}
-            <div class="redeem-history-coins">${coinNum} Coins</div>
+            <div class="redeem-history-coins">
+              <span class="redeem-history-coin-icon">
+                <img src="./icons/gold_coin.svg" alt="coin" />
+              </span>
+              ${coinNum} Coins
+            </div>
           </div>
         </div>
       `;

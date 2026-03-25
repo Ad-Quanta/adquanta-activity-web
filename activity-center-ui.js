@@ -59,6 +59,9 @@ export class WelfareCenterUI {
     this.dailySpinLimit = 5;
     this.spinPrizePool = [10, 20, 30, 50, 100, 150, 200, 10];
     this.currentSpinAvailable = this.loadSpinAvailableState();
+    // Avoid showing a "0 / 0" placeholder flicker before the first updateTasks() run.
+    const progressVideos = document.getElementById("ad-progress-videos");
+    if (progressVideos) progressVideos.textContent = "0 Spins";
     this.spinRotation = 0;
     this._spinInFlight = false;
     this._waitingAdForSpin = false;
@@ -204,15 +207,14 @@ export class WelfareCenterUI {
         this.elements.adRewardAmount.textContent = rewardDisplay;
       }
       if (this.elements.adTaskDesc) {
-        const poolHint =
-          totalPool > 0 && earnedPool != null
-            ? ` Roulette pool: ${earnedPool} / ${totalPool} coins.`
-            : "";
-        this.elements.adTaskDesc.textContent = `Watch ${limit} videos for spin chances (each video grants one spin).${poolHint}`;
+        const poolHint = totalPool > 0 && earnedPool != null ? ` Roulette pool: ${earnedPool} coins.` : "";
+        // Daily limit is no longer fixed on the UI; show a generic description instead.
+        this.elements.adTaskDesc.textContent = `Watch videos for spin chances(each video grants one spin).${poolHint}`;
       }
+      const spunCount = Math.max(0, Number(completed) - Number(this.currentSpinAvailable || 0));
       const progressVideos = document.getElementById("ad-progress-videos");
       if (progressVideos) {
-        progressVideos.textContent = `${completed} / ${limit} Videos`;
+        progressVideos.textContent = `${spunCount} Spins`;
       }
       const earnedText = document.getElementById("ad-earned-text");
       if (earnedText) {
@@ -220,14 +222,7 @@ export class WelfareCenterUI {
           earnedPool != null ? earnedPool : completed * (task.reward ?? 0);
         earnedText.textContent = `${earnedCoins} Coins`;
       }
-      const progressFill = document.querySelector(".tc-video-progress-fill");
-      if (progressFill) {
-        if (totalPool > 0 && earnedPool != null) {
-          progressFill.style.width = `${Math.min(100, (100 * earnedPool) / totalPool)}%`;
-        } else {
-          progressFill.style.width = limit > 0 ? `${Math.min(100, (100 * completed) / limit)}%` : "0%";
-        }
-      }
+      // Progress bar removed: we show actual "Spins Spun" instead.
       if (this.elements.btnWatchAd) {
         this.elements.btnWatchAd.classList.remove("can-claim");
         if (isAllDone) {
@@ -598,10 +593,10 @@ export class WelfareCenterUI {
         this.showSpinWheel();
       });
     }
+    // Intentionally disable the "play" entry click.
+    // Only "Watch & Spin" should open the spin wheel modal.
     if (this.elements.btnSpinEntry) {
-      this.elements.btnSpinEntry.addEventListener("click", () => {
-        this.showSpinWheel();
-      });
+      this.elements.btnSpinEntry.style.pointerEvents = "none";
     }
     if (this.elements.spinWheelClose) {
       this.elements.spinWheelClose.addEventListener("click", () => this.hideSpinWheel());

@@ -1203,6 +1203,18 @@ body {
   background-color: #ec5b13;
 }
 
+.tc-video-spin-count {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #64748b;
+  min-height: 18px;
+  padding: 2px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .tc-secondary-btn {
   margin-top: 8px;
   width: 100%;

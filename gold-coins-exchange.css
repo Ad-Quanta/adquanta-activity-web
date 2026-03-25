@@ -755,6 +755,14 @@ body {
   color: #6b7280;
 }
 
+.redeem-powered {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 11px;
+  color: #9ca3af;
+  letter-spacing: 0.02em;
+}
+
 .redeem-primary-btn {
   margin-top: 12px;
   width: 100%;
@@ -888,6 +896,11 @@ body {
   color: #6b7280;
 }
 
+.redeem-history-phone {
+  font-size: 11px;
+  color: #6b7280;
+}
+
 .redeem-history-amount {
   text-align: right;
   font-size: 13px;
@@ -896,8 +909,18 @@ body {
 }
 
 .redeem-history-coins {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
   font-size: 11px;
   color: #6b7280;
+}
+
+.redeem-history-coin-icon img {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
 }
 
 @media (max-width: 414px) {
