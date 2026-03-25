@@ -1026,7 +1026,10 @@ body {
 .tc-video-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  border-radius: 18px;
+  border: 1px solid #f0e4d9;
+  box-shadow: none;
 }
 
 .tc-video-head {
@@ -1036,22 +1039,69 @@ body {
 }
 
 .tc-video-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background-color: #ec5b13;
+  width: 80px;
+  height: 80px;
+  border-radius: 22px;
+  background-color: #f7d9c3;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
 }
 
 .tc-video-text {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+}
+
+.tc-video-text .tc-card-title {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.tc-video-text .tc-card-subtitle {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.tc-video-badge {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 46px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #f4b400;
+  background: linear-gradient(180deg, #ffe55b 0%, #ffcf24 100%);
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.08);
+}
+
+.tc-video-play-chip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #ffffff;
+  background: #ff7a16;
+  padding: 2px 0 3px;
 }
 
 .tc-video-reward {
@@ -1096,33 +1146,58 @@ body {
 .tc-video-progress {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.tc-video-stats {
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 12px;
 }
 
 .tc-video-progress-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: #6b7280;
 }
 
+.tc-video-progress-item {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #111827;
+  font-weight: 800;
+}
+
+.tc-video-progress-item-right {
+  text-align: right;
+}
+
+.tc-video-progress-label {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .tc-video-progress-value {
   color: #ec5b13;
+  font-weight: 800;
 }
 
 .tc-video-progress-bar {
   width: 100%;
-  height: 6px;
+  height: 12px;
   border-radius: 999px;
-  background-color: #e5e7eb;
+  background-color: #dbe4ee;
   overflow: hidden;
 }
 
 .tc-video-progress-fill {
-  width: 40%;
+  width: 0%;
   height: 100%;
   border-radius: inherit;
   background-color: #ec5b13;
@@ -1168,5 +1243,320 @@ body {
   border-color: #d1d5db;
   background-color: #f3f4f6;
   color: #9ca3af;
+}
+
+.tc-video-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tc-video-actions--single {
+  grid-template-columns: 1fr;
+}
+
+.tc-video-actions .tc-secondary-btn {
+  margin-top: 8px;
+}
+
+.tc-spin-entry-btn {
+  border-color: #ec5b13;
+  color: #ec5b13;
+}
+
+.tc-spin-entry-btn:hover {
+  background-color: #ec5b13;
+  color: #ffffff;
+}
+
+.tc-watch-spin-btn {
+  height: 68px;
+  border-radius: 18px;
+  font-size: 16px;
+  font-weight: 800;
+  border-color: #ef5a12;
+  color: #ef5a12;
+}
+
+.tc-spin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1800;
+  background: rgba(71, 85, 105, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.tc-spin-modal {
+  width: 100%;
+  max-width: 380px;
+  background: linear-gradient(180deg, #ffffff, #f4f4f5);
+  border-radius: 20px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
+  padding: 18px 16px 20px;
+  position: relative;
+  text-align: center;
+}
+
+.tc-spin-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: none;
+  background: transparent;
+  color: #334155;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.tc-spin-badge {
+  width: 54px;
+  height: 54px;
+  margin: 4px auto 8px;
+  border-radius: 999px;
+  background: #fde7cf;
+  color: #f97316;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+
+.tc-spin-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.tc-spin-subtitle {
+  margin: 8px 0 14px;
+  color: #475569;
+  font-size: 14px;
+}
+
+.tc-spin-wheel-wrap {
+  width: 280px;
+  height: 280px;
+  margin: 0 auto 14px;
+  position: relative;
+}
+
+.tc-spin-pointer {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 16px solid #f97316;
+  z-index: 5;
+}
+
+.tc-spin-wheel {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 8px solid #f5d6bf;
+  background: conic-gradient(
+    #ff8a2a 0deg 45deg,
+    #ff9b45 45deg 90deg,
+    #ff7d1a 90deg 135deg,
+    #ff9740 135deg 180deg,
+    #ff7d1a 180deg 225deg,
+    #ff9b45 225deg 270deg,
+    #ff7d1a 270deg 315deg,
+    #ff9b45 315deg 360deg
+  );
+  position: relative;
+  transition: transform 1.6s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.tc-spin-wheel-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 50px;
+  height: 50px;
+  border-radius: 999px;
+  background: #fff7ed;
+  border: 6px solid #ffffff;
+}
+
+.tc-spin-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 13px;
+  transform-origin: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transform: translate(-50%, -50%);
+}
+
+.tc-spin-label-1 { transform: translate(-50%, -50%) rotate(22.5deg) translateY(-98px); }
+.tc-spin-label-2 { transform: translate(-50%, -50%) rotate(67.5deg) translateY(-98px); }
+.tc-spin-label-3 { transform: translate(-50%, -50%) rotate(112.5deg) translateY(-98px); }
+.tc-spin-label-4 { transform: translate(-50%, -50%) rotate(157.5deg) translateY(-98px); }
+.tc-spin-label-5 { transform: translate(-50%, -50%) rotate(202.5deg) translateY(-98px); }
+.tc-spin-label-6 { transform: translate(-50%, -50%) rotate(247.5deg) translateY(-98px); }
+.tc-spin-label-7 { transform: translate(-50%, -50%) rotate(292.5deg) translateY(-98px); }
+.tc-spin-label-8 { transform: translate(-50%, -50%) rotate(337.5deg) translateY(-98px); }
+
+.tc-spin-now-btn {
+  width: 100%;
+  height: 62px;
+  border: none;
+  border-radius: 14px;
+  background: #ff7a16;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 16px 34px rgba(249, 115, 22, 0.35);
+}
+
+.tc-spin-now-btn:active {
+  transform: scale(0.98);
+}
+
+.tc-spin-available {
+  margin-top: 12px;
+  color: #64748b;
+  letter-spacing: 2px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tc-spin-reward-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(71, 85, 105, 0.72);
+}
+
+.tc-spin-reward-modal {
+  width: 100%;
+  max-width: 380px;
+  background: linear-gradient(180deg, #fff, #f8fafc);
+  border-radius: 20px;
+  padding: 22px 16px 18px;
+  position: relative;
+  text-align: center;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
+  border-bottom: 4px solid #fb923c;
+}
+
+.tc-spin-reward-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.tc-spin-reward-icon {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  margin: 0 auto 10px;
+  border-radius: 999px;
+  background: #ec5b13;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  color: #ffffff;
+  box-shadow: 0 0 30px rgba(236, 91, 19, 0.35);
+}
+
+.tc-spin-reward-celebration {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  margin: 0 auto 10px;
+}
+
+.tc-spin-reward-celebration-ring {
+  position: absolute;
+  inset: -18px;
+  border-radius: 50%;
+  background: rgba(236, 91, 19, 0.12);
+  filter: blur(14px);
+}
+
+.tc-spin-reward-title {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.tc-spin-reward-subtitle {
+  margin: 8px 0 12px;
+  color: #1f2937;
+  font-size: 16px;
+}
+
+.tc-spin-reward-coin-line {
+  margin: 0 auto 16px;
+  min-width: 200px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #fdebd8;
+  border: 1px solid #f8c796;
+  border-radius: 12px;
+  padding: 12px 22px;
+  color: #ea580c;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.tc-spin-reward-watch {
+  width: 100%;
+  height: 58px;
+  border-radius: 14px;
+  border: none;
+  background: #ff7a16;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 14px 32px rgba(249, 115, 22, 0.35);
+}
+
+.tc-spin-reward-watch img {
+  width: 22px;
+  height: 22px;
+}
+
+.tc-spin-reward-foot {
+  margin-top: 12px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.tc-spin-reward-foot strong {
+  color: #f97316;
 }
 

@@ -1,4 +1,4 @@
-import { getActivityInfo, getActivityRecords, getCharges, postChargeRedeem, getChargeStatus } from "./activity-api.js";
+import { getActivityInfo, getChargeRecords, getCharges, postChargeRedeem } from "./activity-api.js";
 import * as logger from "./activity-logger.js";
 
 function escapeHtml(s) {
@@ -9,10 +9,6 @@ function escapeHtml(s) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // Full country calling code list (name + dial code)
@@ -357,6 +353,7 @@ export class GoldCoinsExchange {
       redeemSummary: document.getElementById("redeemSummary"),
       historyList: document.getElementById("historyList"),
       viewAllRecordsBtn: document.getElementById("viewAllRecords"),
+      historySection: document.querySelector(".redeem-history-section"),
     };
   }
 
@@ -451,14 +448,41 @@ export class GoldCoinsExchange {
   }
 
   /**
-   * 加载兑换记录（/api/v1/ops/activity/records）
+   * 解析 records 返回的列表（兼容 data 为数组或 { records: [] } 等形态）
+   */
+  normalizeRecordsPayload(data) {
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.records)) return data.records;
+    if (data && Array.isArray(data.list)) return data.list;
+    if (data && Array.isArray(data.items)) return data.items;
+    return [];
+  }
+
+  /**
+   * 是否属于兑换/话费类记录（后端字段名可能不一致）
+   */
+  isRedeemHistoryRecord(r) {
+    if (!r) return false;
+    const ty = String(r.type || "").toLowerCase();
+    const bt = String(r.business_type || "").toLowerCase();
+    const redeemLike = ["redeem", "recharge", "top_up", "topup", "charges"];
+    if (redeemLike.includes(bt)) return true;
+    if (ty === "redeem") return true;
+    if (ty === "spend") {
+      if (!r.business_type) return true;
+      return redeemLike.includes(bt);
+    }
+    return false;
+  }
+
+  /**
+   * 加载兑换记录（/api/v1/ops/activity/charges/records）
    */
   async loadRecords() {
     try {
-      const res = await getActivityRecords(this.config.apiOptions);
-      // New API: { code:200, data: Array<record> }
-      if (res?.code === 200 && Array.isArray(res?.data)) {
-        this.records = res.data;
+      const res = await getChargeRecords(this.config.apiOptions, { limit: 200, offset: 0 });
+      if (res?.code === 200 && res?.data != null) {
+        this.records = this.normalizeRecordsPayload(res.data);
         this.renderRecords(this.records, this.showAllRecords);
       } else {
         this.records = [];
@@ -494,24 +518,21 @@ export class GoldCoinsExchange {
    */
   renderRecords(records, showAll = false) {
     if (!this.$.historyList) return;
-    const redeemOnly = (records || []).filter((r) => {
-      if (!r) return false;
-      if (r.type !== "spend") return false;
-      // Prefer business_type === "redeem" when provided
-      if (r.business_type) return r.business_type === "redeem";
-      return true;
-    });
-    const sorted = redeemOnly.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    const redeemOnly = Array.isArray(records) ? records : [];
+    const sorted = redeemOnly
+      .slice()
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     const list = showAll ? sorted : sorted.slice(0, 2);
 
     this.$.historyList.innerHTML = list
       .map((r) => {
-        const coinNum = Math.abs(Number(r.coin) || 0);
-        const statusRaw = String(r.status || "success").toLowerCase();
+        const coinNum = Math.abs(Number(r.coin_cost ?? r.coin ?? 0) || 0);
+        const statusRaw = String(r.status || r.processing_state || "success").toLowerCase();
+        const isProcessing = statusRaw === "processing" || statusRaw === "pending";
         let iconClass = "redeem-history-icon--success";
         let iconText = "✓";
         let statusLabel = "Success";
-        if (statusRaw === "processing") {
+        if (isProcessing) {
           iconClass = "redeem-history-icon--processing";
           iconText = "...";
           statusLabel = "Processing";
@@ -520,11 +541,39 @@ export class GoldCoinsExchange {
           iconText = "x";
           statusLabel = "Failed";
         }
+        const sendValue = r.send_value ?? r.sendValue ?? "";
+        // Try to build a human-readable amount label (value + currency/unit) if the record provides it.
+        const amountText =
+          r.amount_text ?? r.amountText ?? r.amount_label ?? r.amountLabel ?? r.send_value_text ?? r.sendValueText ?? "";
+        const currency =
+          r.receive_currency ??
+          r.receiveCurrency ??
+          r.currency ??
+          r.amount_currency ??
+          r.amountCurrency ??
+          r.send_value_currency ??
+          r.sendValueCurrency ??
+          "";
+        const amountLabel = amountText
+          ? amountText
+          : currency
+            ? `${sendValue} ${currency}`.trim()
+            : sendValue;
+        const businessId = r.business_id ?? r.businessId ?? r.distributor_ref ?? r.distributorRef ?? "";
+        const phoneNumber = r.phone_number ?? r.phone ?? "";
+        const skuCode = r.sku_code ?? "";
         return `
-        <div class="redeem-history-item">
+        <div class="redeem-history-item redeem-history-item--clickable"
+             data-open-status="1"
+             data-business-id="${escapeHtml(businessId)}"
+             data-distributor-ref="${escapeHtml(r.distributor_ref || r.distributorRef || "")}"
+             data-amount-label="${escapeHtml(String(amountLabel ?? ""))}"
+             data-send-value="${escapeHtml(String(sendValue ?? ""))}"
+             data-phone-number="${escapeHtml(String(phoneNumber ?? ""))}"
+             data-operator="${escapeHtml(String(skuCode ?? ""))}">
           <div class="redeem-history-icon ${iconClass}">${iconText}</div>
           <div class="redeem-history-main">
-            <div class="redeem-history-title">${escapeHtml(r.description || "Redeem")}</div>
+            <div class="redeem-history-title">${escapeHtml(skuCode ? `Top-up ${skuCode}` : "Redeem")}</div>
             <div class="redeem-history-subtitle">
               ${escapeHtml(this.formatRecordDate(r.created_at))} • ${escapeHtml(statusLabel)}
             </div>
@@ -542,6 +591,23 @@ export class GoldCoinsExchange {
       this.$.viewAllRecordsBtn.textContent = showAll ? "Collapse" : "View All";
       this.$.viewAllRecordsBtn.style.visibility = redeemOnly.length > 2 ? "visible" : "hidden";
     }
+  }
+
+  openTopupStatusPage(payload = {}) {
+    const params = new URLSearchParams();
+    const businessId = payload.business_id || payload.businessId || payload.distributor_ref || payload.distributorRef || "";
+    const distributorRef = payload.distributor_ref || payload.distributorRef || businessId || "";
+    params.set("business_id", String(businessId));
+    params.set("distributor_ref", String(distributorRef));
+    params.set("status", String(payload.status || "pending"));
+    params.set("amount_label", String(payload.amount_label || ""));
+    params.set("send_value", String(payload.send_value || ""));
+    params.set("phone_number", String(payload.phone_number || ""));
+    params.set("operator", String(payload.operator || ""));
+    params.set("token", String(this.config.apiOptions?.token || ""));
+    params.set("base_url", String(this.config.apiOptions?.baseUrl || ""));
+    params.set("activity_id", String(this.config.apiOptions?.activityId || ""));
+    window.location.href = `./topup-status.html?${params.toString()}`;
   }
 
   /**
@@ -857,65 +923,20 @@ export class GoldCoinsExchange {
         return;
       }
 
-      // Submit phase ends here: no longer lock button by polling state.
-      this.exchangeLoading = false;
-      // 订单创建成功后，立即把兑换页重置到初始状态；轮询在后台继续。
-      this.resetRedeemPageToInitialState();
-
-      let finalStatus = "";
-      let finalMsg = "";
-      while (true) {
-        await sleep(4000);
-        let statusRes;
-        try {
-          statusRes = await getChargeStatus(this.config.apiOptions, distributorRef);
-        } catch (e) {
-          finalStatus = "error";
-          finalMsg = e?.message || "Query order status failed";
-          break;
-        }
-
-        finalMsg = statusRes?.data?.message || statusRes?.message || "";
-        if (statusRes?.code !== 200) {
-          finalStatus = "error";
-          if (!finalMsg) finalMsg = "Order status query failed";
-          break;
-        }
-        if (statusRes?.data?.success !== true) {
-          finalStatus = "error";
-          if (!finalMsg) finalMsg = "Order processing failed";
-          break;
-        }
-
-        const status = String(statusRes?.data?.status || "").toLowerCase();
-        if (status === "success") {
-          finalStatus = "success";
-          break;
-        }
-        if (status === "failed") {
-          finalStatus = "failed";
-          if (!finalMsg) finalMsg = "Top-up failed";
-          break;
-        }
-      }
-
-      if (finalStatus === "success") {
-        this.config.onExchangeSuccess(product);
-      } else {
-        this.config.onExchangeFailed(finalMsg || "Redemption failed, please try again");
-      }
+      // Submit succeeded and order created: jump to detail page.
+      this.openTopupStatusPage({
+        distributor_ref: distributorRef,
+        status: String(res?.data?.status || "pending").toLowerCase(),
+        amount_label: this.state.selectedCharge?.amount_text || String(this.state.amount ?? ""),
+        send_value: sendValue,
+        phone_number,
+        operator: this.state.operator || "",
+      });
+      return;
     } catch (error) {
       logger.error("Redeem top-up failed", error);
       this.config.onExchangeFailed(error?.message || "Redemption failed, please try again");
     } finally {
-      // 轮询结束后，更新兑换历史与金币
-      try {
-        await this.loadRecords();
-      } catch (_) {}
-      try {
-        await this.loadActivityInfo();
-      } catch (_) {}
-
       this.exchangeLoading = false;
       if (this.$.btnRedeem) {
         this.$.btnRedeem.textContent = this.$.btnRedeem.dataset.originalText || "Redeem Now";
@@ -938,6 +959,29 @@ export class GoldCoinsExchange {
         this.renderRecords(this.records, this.showAllRecords);
       });
     }
+
+    if (this.$.historyList) {
+      this.$.historyList.addEventListener("click", (e) => {
+        const row = e.target.closest(".redeem-history-item");
+        if (!row) return;
+        if (row.getAttribute("data-open-status") !== "1") return;
+        const business_id = row.getAttribute("data-business-id") || "";
+        if (!business_id) return;
+        const distributor_ref = row.getAttribute("data-distributor-ref") || "";
+        this.openTopupStatusPage({
+          business_id,
+          distributor_ref,
+          status: "pending",
+          amount_label: row.getAttribute("data-amount-label") || "",
+          send_value: row.getAttribute("data-send-value") || "",
+          phone_number: row.getAttribute("data-phone-number") || "",
+          operator: row.getAttribute("data-operator") || "",
+        });
+      });
+    }
+
+    // Intentionally removed history-section click navigation.
+    // Only each history cell (.redeem-history-item) will navigate to topup-status.
 
     // Redeem confirmation modal is disabled by design (direct redeem).
 

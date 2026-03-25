@@ -10,10 +10,21 @@ export class WelfareCenterUI {
       adRewardAmount: document.getElementById("ad-reward-amount"),
       adTaskDesc: document.getElementById("ad-task-desc"),
       btnWatchAd: document.getElementById("btn-watch-ad"),
+      btnSpinEntry: document.getElementById("btn-spin-entry"),
       adOverlay: document.getElementById("adOverlay"),
       adProgress: document.getElementById("adProgress"),
       adProgressText: document.getElementById("adProgressText"),
       adCloseBtn: document.getElementById("adCloseBtn"),
+      spinWheelModal: document.getElementById("spinWheelModal"),
+      spinWheelClose: document.getElementById("spinWheelClose"),
+      spinWheelDisk: document.getElementById("spinWheelDisk"),
+      spinWheelSpinBtn: document.getElementById("spinWheelSpinBtn"),
+      spinWheelAvailable: document.getElementById("spinWheelAvailable"),
+      spinWheelSubtitle: document.getElementById("spinWheelSubtitle"),
+      spinRewardModal: document.getElementById("spinRewardModal"),
+      spinRewardClose: document.getElementById("spinRewardClose"),
+      spinRewardCoins: document.getElementById("spinRewardCoins"),
+      spinRewardWatchAgain: document.getElementById("spinRewardWatchAgain"),
       userGreeting: document.getElementById("userGreeting"),
       toast: document.getElementById("toast"),
       // 兑换入口按钮（命名上复用 withdrawBtn，实际对应金币兑换）
@@ -33,6 +44,8 @@ export class WelfareCenterUI {
 
     this.config = {
       onWatchAdClick: config.onWatchAdClick || (() => {}),
+      onSpinWheelOpen: config.onSpinWheelOpen || (() => {}),
+      onSpinRequest: config.onSpinRequest || (async () => ({ ok: false })),
       onClaimAdClick: config.onClaimAdClick || (() => {}),
       onAdCloseClick: config.onAdCloseClick || (() => {}),
       onWithdrawClick: config.onWithdrawClick || (() => {}),
@@ -43,6 +56,114 @@ export class WelfareCenterUI {
 
     this.adWatchProgress = 0;
     this.adWatchInterval = null;
+    this.dailySpinLimit = 5;
+    this.spinPrizePool = [10, 20, 30, 50, 100, 150, 200, 10];
+    this.currentSpinAvailable = this.loadSpinAvailableState();
+    this.spinRotation = 0;
+    this._spinInFlight = false;
+    this._waitingAdForSpin = false;
+  }
+
+  /** 将展示金额映射到转盘扇区（优先精确匹配，找不到再取最近） */
+  _sectorIndexForPrize(prize) {
+    const p = Number(prize);
+    if (!Number.isFinite(p)) return 0;
+    const pool = this.spinPrizePool;
+    const exact = pool.findIndex((v) => Number(v) === p);
+    if (exact >= 0) return exact;
+    let best = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < pool.length; i++) {
+      const d = Math.abs(Number(pool[i]) - p);
+      if (d < bestDist) {
+        bestDist = d;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  getTodaySpinAvailableKey() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `activity_turntable_available_${y}${m}${day}`;
+  }
+
+  loadSpinAvailableState() {
+    try {
+      const raw = localStorage.getItem(this.getTodaySpinAvailableKey()) || "0";
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  saveSpinAvailableState() {
+    try {
+      localStorage.setItem(this.getTodaySpinAvailableKey(), String(this.currentSpinAvailable));
+    } catch (_) {}
+  }
+
+  clampSpinCountByLimit() {
+    const limit = Number(this.dailySpinLimit || 0);
+    if (limit >= 0) {
+      this.currentSpinAvailable = Math.min(this.currentSpinAvailable, limit);
+    }
+    this.currentSpinAvailable = Math.max(0, Math.floor(this.currentSpinAvailable));
+    this.saveSpinAvailableState();
+  }
+
+  addSpinChance(delta = 1) {
+    const inc = Number(delta);
+    if (!Number.isFinite(inc) || inc <= 0) return;
+    this.currentSpinAvailable += Math.floor(inc);
+    this.clampSpinCountByLimit();
+    this.updateSpinAvailableText();
+  }
+
+  consumeSpinChance(delta = 1) {
+    const dec = Number(delta);
+    if (!Number.isFinite(dec) || dec <= 0) return;
+    this.currentSpinAvailable = Math.max(0, this.currentSpinAvailable - Math.floor(dec));
+    this.saveSpinAvailableState();
+    this.updateSpinAvailableText();
+  }
+
+  renderTurntableFromCoins(rouletteCoins = []) {
+    const list = Array.isArray(rouletteCoins) ? rouletteCoins.slice(0, 8) : [];
+    while (list.length < 8) list.push(0);
+    this.spinPrizePool = list.map((v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    });
+    for (let i = 0; i < 8; i += 1) {
+      const el = document.querySelector(`.tc-spin-label-${i + 1}`);
+      if (el) el.textContent = String(this.spinPrizePool[i] ?? 0);
+    }
+  }
+
+  syncTurntableFromTask(task) {
+    if (!task) return;
+    const limit = Number(task.daily_limit ?? this.dailySpinLimit);
+    if (Number.isFinite(limit) && limit > 0) this.dailySpinLimit = limit;
+    const coins = task?.roulette?.roulette_coins;
+    this.renderTurntableFromCoins(coins);
+    this.clampSpinCountByLimit();
+    this.updateSpinAvailableText();
+  }
+
+  isWaitingAdForSpin() {
+    return this._waitingAdForSpin === true;
+  }
+
+  async handleRewardAdCompletedForSpin() {
+    if (!this._waitingAdForSpin) return;
+    this._waitingAdForSpin = false;
+    this.addSpinChance(1);
+    await this.spinWheel();
   }
 
   /**
@@ -56,36 +177,56 @@ export class WelfareCenterUI {
   }
 
   /**
-   * 更新日常视频任务 UI（type === 'video' 的 task.detail：today_watched, daily_limit, remain_count, coin）
-   * 6 处数字均随服务端：本次得 coin 金币、已完成 today_watched 次、Earned: earned/total Gold Coins、today_watched/daily_limit Videos
+   * 更新日常视频任务 UI（type === 'video' 的 task.detail：today_watched, daily_limit, remain_count, coin, roulette）
    */
   updateTasks(tasks) {
     if (tasks.watchAd) {
       const task = tasks.watchAd;
       const limit = task.daily_limit ?? 5;
       const completed = task.completed ?? 0;
-      const reward = task.reward ?? 0;
-      const earned = completed * reward;
-      const total = limit * reward;
       const isAllDone = limit !== 0 && completed >= limit;
+      const r = task.roulette;
+      const totalPool = r != null && typeof r.total_coins === "number" ? r.total_coins : 0;
+      const earnedPool = r != null && typeof r.earned_coins === "number" ? r.earned_coins : null;
+      const nextCoin = r != null && typeof r.next_coin === "number" ? r.next_coin : null;
 
+      // `spinCount` 来自前端本地维护；但每个机会都必须由后端的 `today_watched`（completed）产生。
+      // 例如你清空 DB 但本地缓存还在时，会出现本地 spinCount>0 而 completed=0 的情况。
+      // 此处强制把本地 spinCount 上限钳制到 completed，确保默认显示正确。
+      this.syncTurntableFromTask(task);
+      this.currentSpinAvailable = Math.min(this.currentSpinAvailable, completed);
+      this.saveSpinAvailableState();
+      this.updateSpinAvailableText();
+
+      const rewardDisplay =
+        nextCoin != null ? String(nextCoin) : String(task.reward ?? 0);
       if (this.elements.adRewardAmount) {
-        this.elements.adRewardAmount.textContent = reward;
+        this.elements.adRewardAmount.textContent = rewardDisplay;
       }
       if (this.elements.adTaskDesc) {
-        this.elements.adTaskDesc.textContent = `Earn ${reward} coins per video, ${completed} completed`;
-      }
-      const earnedText = document.getElementById("ad-earned-text");
-      if (earnedText) {
-        earnedText.textContent = `Earned: ${earned} / ${total} Gold Coins`;
+        const poolHint =
+          totalPool > 0 && earnedPool != null
+            ? ` Roulette pool: ${earnedPool} / ${totalPool} coins.`
+            : "";
+        this.elements.adTaskDesc.textContent = `Watch ${limit} videos for spin chances (each video grants one spin).${poolHint}`;
       }
       const progressVideos = document.getElementById("ad-progress-videos");
       if (progressVideos) {
         progressVideos.textContent = `${completed} / ${limit} Videos`;
       }
+      const earnedText = document.getElementById("ad-earned-text");
+      if (earnedText) {
+        const earnedCoins =
+          earnedPool != null ? earnedPool : completed * (task.reward ?? 0);
+        earnedText.textContent = `${earnedCoins} Coins`;
+      }
       const progressFill = document.querySelector(".tc-video-progress-fill");
       if (progressFill) {
-        progressFill.style.width = limit > 0 ? `${Math.min(100, (100 * completed) / limit)}%` : "0%";
+        if (totalPool > 0 && earnedPool != null) {
+          progressFill.style.width = `${Math.min(100, (100 * earnedPool) / totalPool)}%`;
+        } else {
+          progressFill.style.width = limit > 0 ? `${Math.min(100, (100 * completed) / limit)}%` : "0%";
+        }
       }
       if (this.elements.btnWatchAd) {
         this.elements.btnWatchAd.classList.remove("can-claim");
@@ -94,11 +235,138 @@ export class WelfareCenterUI {
           this.elements.btnWatchAd.disabled = true;
           this.elements.btnWatchAd.classList.add("is-completed");
         } else {
-          this.elements.btnWatchAd.textContent = "Watch Now";
+          this.elements.btnWatchAd.textContent = "Watch & Spin";
           this.elements.btnWatchAd.disabled = false;
           this.elements.btnWatchAd.classList.remove("is-completed");
         }
       }
+      if (this.elements.btnSpinEntry) {
+        // Entry button stays clickable; availability is enforced on "Spin Now".
+        this.elements.btnSpinEntry.disabled = false;
+        this.elements.btnSpinEntry.classList.remove("is-completed");
+      }
+    }
+  }
+
+  updateSpinAvailableText() {
+    if (this.elements.spinWheelAvailable) {
+      this.elements.spinWheelAvailable.textContent = `${this.currentSpinAvailable} FREE SPINS AVAILABLE`;
+    }
+  }
+
+  async showSpinWheel() {
+    this.updateSpinAvailableText();
+    try {
+      await this.config.onSpinWheelOpen();
+    } catch (_) {}
+    if (this.elements.spinWheelSubtitle) {
+      this.elements.spinWheelSubtitle.textContent =
+        this.currentSpinAvailable > 0
+          ? "You earned spin chances from Daily Video Tasks."
+          : "Tap Spin Now to watch a video and earn a spin chance.";
+    }
+    if (this.elements.spinWheelModal) {
+      this.elements.spinWheelModal.style.display = "flex";
+    }
+  }
+
+  hideSpinWheel() {
+    if (this.elements.spinWheelModal) {
+      this.elements.spinWheelModal.style.display = "none";
+    }
+  }
+
+  async spinWheel() {
+    if (this._spinInFlight) return;
+    if (this.currentSpinAvailable <= 0) {
+      this._waitingAdForSpin = true;
+      this.config.onWatchAdClick();
+      return;
+    }
+    this._spinInFlight = true;
+    let prize = 0;
+    try {
+      const result = await this.config.onSpinRequest();
+      if (!result?.ok) {
+        this._spinInFlight = false;
+        return;
+      }
+      prize = Number(result.coin ?? 0);
+    } catch (_) {
+      this._spinInFlight = false;
+      return;
+    }
+    this.consumeSpinChance(1);
+    const idx = this._sectorIndexForPrize(prize);
+    const sectorDeg = 360 / this.spinPrizePool.length;
+    // Always stop inside a sector (never on separator lines).
+    const safeMarginDeg = 4;
+    const maxOffsetDeg = Math.max(0, sectorDeg / 2 - safeMarginDeg);
+    const randomOffsetDeg = (Math.random() * 2 - 1) * maxOffsetDeg;
+    const targetDeg = 360 - (idx * sectorDeg + sectorDeg / 2 + randomOffsetDeg);
+    this.spinRotation += 1800 + targetDeg;
+    if (this.elements.spinWheelDisk) {
+      this.elements.spinWheelDisk.style.transform = `rotate(${this.spinRotation}deg)`;
+    }
+
+    if (this.elements.btnSpinEntry) {
+      this.elements.btnSpinEntry.disabled = false;
+      this.elements.btnSpinEntry.classList.remove("is-completed");
+    }
+    const disk = this.elements.spinWheelDisk;
+    let finished = false;
+    const startAt = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    const minRewardMs = 1550; // Must be after wheel started; aligns with CSS 1.6s transition.
+    let rewardTimer = null;
+    const finish = () => {
+      if (finished) return;
+      const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+      const elapsed = now - startAt;
+      if (elapsed < minRewardMs) {
+        const remaining = minRewardMs - elapsed;
+        if (rewardTimer) return;
+        rewardTimer = setTimeout(() => {
+          rewardTimer = null;
+          finish();
+        }, remaining);
+        return;
+      }
+      finished = true;
+      this.showSpinRewardDialog(prize);
+      this._spinInFlight = false;
+    };
+
+    // Prefer transitionend so reward modal is shown after wheel animation completes.
+    if (disk && typeof disk.addEventListener === "function") {
+      const onEnd = (e) => {
+        // Only handle transform transition completion.
+        if (!e || e.propertyName !== "transform") return;
+        disk.removeEventListener("transitionend", onEnd);
+        finish();
+      };
+      disk.addEventListener("transitionend", onEnd);
+      // Fallback in case transitionend doesn't fire in some WebViews.
+      setTimeout(() => {
+        disk.removeEventListener("transitionend", onEnd);
+        finish();
+      }, 1850);
+    } else {
+      finish();
+    }
+  }
+
+  showSpinRewardDialog(prize) {
+    if (this.elements.spinRewardCoins) {
+      this.elements.spinRewardCoins.textContent = `+${Number(prize || 0)}`;
+    }
+    if (this.elements.spinRewardModal) {
+      this.elements.spinRewardModal.style.display = "flex";
+    }
+  }
+
+  hideSpinRewardDialog() {
+    if (this.elements.spinRewardModal) {
+      this.elements.spinRewardModal.style.display = "none";
     }
   }
 
@@ -327,6 +595,36 @@ export class WelfareCenterUI {
     if (this.elements.btnWatchAd) {
       this.elements.btnWatchAd.addEventListener("click", () => {
         if (this.elements.btnWatchAd.disabled) return;
+        this.showSpinWheel();
+      });
+    }
+    if (this.elements.btnSpinEntry) {
+      this.elements.btnSpinEntry.addEventListener("click", () => {
+        this.showSpinWheel();
+      });
+    }
+    if (this.elements.spinWheelClose) {
+      this.elements.spinWheelClose.addEventListener("click", () => this.hideSpinWheel());
+    }
+    if (this.elements.spinWheelModal) {
+      this.elements.spinWheelModal.addEventListener("click", (e) => {
+        if (e.target === this.elements.spinWheelModal) this.hideSpinWheel();
+      });
+    }
+    if (this.elements.spinWheelSpinBtn) {
+      this.elements.spinWheelSpinBtn.addEventListener("click", () => { this.spinWheel(); });
+    }
+    if (this.elements.spinRewardClose) {
+      this.elements.spinRewardClose.addEventListener("click", () => this.hideSpinRewardDialog());
+    }
+    if (this.elements.spinRewardModal) {
+      this.elements.spinRewardModal.addEventListener("click", (e) => {
+        if (e.target === this.elements.spinRewardModal) this.hideSpinRewardDialog();
+      });
+    }
+    if (this.elements.spinRewardWatchAgain) {
+      this.elements.spinRewardWatchAgain.addEventListener("click", () => {
+        this.hideSpinRewardDialog();
         this.config.onWatchAdClick();
       });
     }

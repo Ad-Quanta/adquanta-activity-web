@@ -140,16 +140,17 @@ export async function postCheckin(options = {}, body = {}) {
 }
 
 /**
- * 签到看视频成功领取奖励
- * POST /api/v1/ops/activity/video（不传 app_id）
+ * 转动转盘获取金币（每日看视频完成后调用，消耗一次转盘机会并由服务端结算本次金币）
+ * POST /api/v1/ops/activity/video
  * @param {Object} options - { baseUrl? }
- * @param {{ video_id: string }} body - 看完视频后的视频 id
- * @returns {Promise<{ code: number, data?: { success: boolean, coin: number, total_coin: number, message: string, today_watched: number, remain_count: number }, message?: string }>}
+ * @param {{ video_id?: string }} body - 当前后端可不传，默认空字符串
+ * @returns {Promise<{ code: number, data?: { success: boolean, coin: number, total_coin: number, message: string, today_watched: number, remain_count: number, roulette?: { total_coins: number, earned_coins: number, remaining_coins: number, next_coin: number } }, message?: string }>}
+ * @description data.roulette.earned_coins 为本次转盘抽中的金币数（前端转盘动画应对齐该值）
  */
-export async function postCheckinVideo(options = {}, body = {}) {
+export async function postActivityVideo(options = {}, body = {}) {
   const baseUrl = resolveApiBase(options);
   const url = `${baseUrl}/api/v1/ops/activity/video`;
-  return loggedFetch("postCheckinVideo", url, {
+  return loggedFetch("postActivityVideo", url, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...buildAuthHeaders(options) },
     body: JSON.stringify({ video_id: body.video_id ?? "" }),
@@ -212,6 +213,25 @@ export async function getChargeStatus(options = {}, distributorRef = "") {
   const ref = encodeURIComponent(String(distributorRef || ""));
   const url = `${baseUrl}/api/v1/ops/activity/charges/${ref}/status`;
   return loggedFetch("getChargeStatus", url, {
+    method: "GET",
+    headers: { ...buildAuthHeaders(options) },
+  });
+}
+
+/**
+ * 获取兑换/充值记录列表
+ * GET /api/v1/ops/activity/charges/records
+ * @param {Object} options - { baseUrl?, token? }
+ * @param {{ limit?: number, offset?: number }} params
+ * @returns {Promise<{ code: number, data?: { records?: Array, limit?: number, offset?: number }, message?: string }>}
+ */
+export async function getChargeRecords(options = {}, params = {}) {
+  const baseUrl = resolveApiBase(options);
+  const url = `${baseUrl}/api/v1/ops/activity/charges/records?${new URLSearchParams({
+    limit: String(params.limit ?? ""),
+    offset: String(params.offset ?? ""),
+  }).toString()}`;
+  return loggedFetch("getChargeRecords", url, {
     method: "GET",
     headers: { ...buildAuthHeaders(options) },
   });

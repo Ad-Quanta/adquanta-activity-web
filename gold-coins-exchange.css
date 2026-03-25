@@ -810,6 +810,14 @@ body {
   border: 1px solid #e5e7eb;
 }
 
+.redeem-history-item--clickable {
+  cursor: pointer;
+}
+
+.redeem-history-item--clickable:active {
+  transform: scale(0.995);
+}
+
 .redeem-history-icon {
   width: 32px;
   height: 32px;

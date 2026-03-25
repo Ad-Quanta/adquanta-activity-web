@@ -75,13 +75,13 @@ python3 app.py
 
 1. 点击「Check-in Now」执行签到，成功后弹出签到成功弹框
 2. 可选择「Claim base reward only」仅领基础金币，或「Get Nx Extra Coins (Watch Video)」先关弹框再播激励视频领额外金币
-3. 签到看视频完成后会请求 `/api/v1/ops/activity/video` 领奖并刷新页面
+3. 签到看视频完成后会请求 `/api/v1/ops/activity/checkin`（`type=triple`）领奖并刷新基础信息
 
-### 每日看视频流程
+### 每日看视频 / 转盘流程
 
-1. 在「Daily Video Task」卡片点击「Watch Now」播激励视频
-2. 播完后按钮变为「Claim」，点击领取金币
-3. 每日次数与单次奖励由后端基础信息接口的 `tasks[type=video]` 配置
+1. 在「Lucky Spin」卡片进入大转盘或先看激励视频
+2. 激励视频播完后会请求 `POST /api/v1/ops/activity/video`（传 `video_id`）结算本次转盘金币并刷新基础信息；响应里 `data.roulette.earned_coins` 为本次抽中金币数，前端转盘动画与该值对齐
+3. 每日次数与奖池等由后端基础信息接口的 `tasks[type=video]`（含 `roulette`）配置
 
 ### 注意事项
 

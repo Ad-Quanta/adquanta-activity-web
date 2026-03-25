@@ -1,4 +1,4 @@
-import { getActivityInfo, postCheckin, postCheckinVideo } from "./activity-api.js";
+import { getActivityInfo, postCheckin, postActivityVideo } from "./activity-api.js";
 import * as logger from "./activity-logger.js";
 
 /**
@@ -18,6 +18,8 @@ export class WelfareCenterBusiness {
       completed: 0,
       daily_limit: 0,
       reward: 0,
+      remain_count: 0,
+      roulette: null,
       canClaim: false,
     };
 
@@ -83,10 +85,20 @@ export class WelfareCenterBusiness {
           }
           if (task.type === "video" && task.detail != null) {
             const v = task.detail;
+            const dailyLimit = v.daily_limit ?? 0;
+            const todayWatched = v.today_watched ?? 0;
+            const remain =
+              typeof v.remain_count === "number"
+                ? v.remain_count
+                : Math.max(0, dailyLimit - todayWatched);
+            const roulette =
+              v.roulette != null && typeof v.roulette === "object" ? { ...v.roulette } : null;
             this.adTaskStatus = {
-              completed: v.today_watched ?? 0,
-              daily_limit: v.daily_limit ?? 0,
+              completed: todayWatched,
+              daily_limit: dailyLimit,
               reward: v.coin ?? 0,
+              remain_count: remain,
+              roulette,
               canClaim: false,
             };
             this.config.onTaskUpdate({ watchAd: this.adTaskStatus });
@@ -163,27 +175,32 @@ export class WelfareCenterBusiness {
   }
 
   /**
-   * 日常看视频领奖：广告看完后调用 /api/v1/ops/activity/video，然后刷新基础信息
+   * 日常看视频后转动转盘结算：广告看完后调用 /api/v1/ops/activity/video，再刷新基础信息
    * @param {Object} [apiOptions] - { baseUrl? (后端 API 根，同 activity-api BaseApiUrl), app_id?, token? }
    * @param {string} [video_id]
    * @returns {Promise<{ ok: boolean }>}
    */
   async claimDailyVideoReward(apiOptions = {}, video_id = "") {
-    logger.log("[日常看视频领奖] 调用 /api/v1/ops/activity/video video_id=" + video_id);
+    logger.log("[转盘结算] 调用 /api/v1/ops/activity/video video_id=" + video_id);
     try {
-      const res = await postCheckinVideo(apiOptions, { video_id });
+      const res = await postActivityVideo(apiOptions, { video_id });
       const msg = res.data?.message ?? res.message ?? "";
       if (res.code === 200 && res.data?.success) {
-        this.config.onToast(msg || "Video completed! Coins rewarded.", "success");
+        await this.loadActivityInfo(apiOptions);
+        return {
+          ok: true,
+          coin: Number(res.data?.coin ?? 0),
+          roulette: res.data?.roulette ?? null,
+          message: msg || "Video completed! Coins rewarded.",
+        };
       } else {
         this.config.onToast(msg || "Claim failed", "error");
       }
     } catch (error) {
-      logger.error("Claim daily video reward failed", error);
+      logger.error("Turntable / daily video reward failed", error);
       this.config.onToast(error?.message || "Claim failed, please try again", "error");
     }
-    await this.loadActivityInfo(apiOptions);
-    return { ok: true };
+    return { ok: false };
   }
 
   /**
