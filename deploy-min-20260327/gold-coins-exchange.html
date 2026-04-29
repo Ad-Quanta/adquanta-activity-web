@@ -155,13 +155,25 @@
 
   <script type="module">
     import { GoldCoinsExchange } from "/gold-coins-exchange.js";
-    import { postAuthToken, BaseApiUrl } from "/activity-api.js";
+    import { BaseApiUrl } from "/activity-api.js";
     import * as logger from "/activity-logger.js";
 
     const qp = new URLSearchParams(window.location.search);
-    const tokenFromUrl = qp.get("token") || "";
-    const code = qp.get("code") || "";
-    const activityId = qp.get("activity_id") || "";
+    const refQp = (() => {
+      try {
+        return new URL(document.referrer || "").searchParams;
+      } catch (_) {
+        return new URLSearchParams("");
+      }
+    })();
+    const tokenFromUrl =
+      qp.get("token") ||
+      qp.get("access_token") ||
+      refQp.get("token") ||
+      refQp.get("access_token") ||
+      "";
+    const code = qp.get("code") || refQp.get("code") || "";
+    const activityId = qp.get("activity_id") || refQp.get("activity_id") || "";
 
     function showAuthFailedDialog() {
       const modal = document.getElementById("authFailedModal");
@@ -185,23 +197,15 @@
       }
     } catch (_) {}
 
-    try {
-      if (!token) {
-        // Prefer URL token; if missing, fallback to code exchange
-        token = tokenFromUrl ? String(tokenFromUrl) : "";
-      }
-
-      if (!token) {
-        if (!code) {
-          showAuthFailedDialog();
-          throw new Error("Missing token and code in URL");
-        }
-        const authRes = await postAuthToken({ baseUrl: BaseApiUrl }, { code });
-        token = authRes?.data?.access_token || "";
-      }
-    } catch (e) {
-      showAuthFailedDialog();
-      throw e;
+    // 仅允许 App 注入 token；Web 端不做自我鉴权（不再用 code 换 token）
+    if (tokenFromUrl) {
+      token = String(tokenFromUrl);
+      try {
+        sessionStorage.setItem("activity_entry_token_v1", token);
+      } catch (_) {}
+    }
+    if (!token) {
+      token = sessionStorage.getItem("activity_entry_token_v1") || "";
     }
     if (!token) {
       showAuthFailedDialog();
@@ -231,16 +235,23 @@
     document.getElementById("backBtn").addEventListener("click", () => {
       // Prefer returning with the same token, so activity-center doesn't need to re-exchange a one-time code.
       if (token) {
-        window.location.href = `/activity/activity-center.html?token=${encodeURIComponent(token)}&activity_id=${encodeURIComponent(activityId || "")}`;
+        window.location.href = `/activity-center.html?token=${encodeURIComponent(token)}&activity_id=${encodeURIComponent(activityId || "")}`;
       } else {
         window.history.back();
       }
     });
 
-    // 显示 Toast
+    // Toast must be English only (US users)
     function showToast(message, type = "info") {
       const toast = document.getElementById("toast");
-      toast.textContent = message;
+      const containsCJK = /[\u4e00-\u9fff]/.test(String(message || ""));
+      const fallbackByType = {
+        success: "Done.",
+        error: "Something went wrong. Please try again.",
+        warning: "Please try again.",
+        info: "Please wait...",
+      };
+      toast.textContent = containsCJK ? (fallbackByType[type] || "Please try again.") : String(message ?? "");
       toast.className = `toast ${type}`;
       toast.style.display = "block";
       setTimeout(() => {

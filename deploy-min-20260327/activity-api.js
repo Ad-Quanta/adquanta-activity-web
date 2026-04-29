@@ -5,8 +5,8 @@
  */
 import * as logger from "/activity-logger.js";
 
-/** 后端 API 根地址（写死）；与 H5 静态页所在 Web 服务 origin 区分 */
-export const BaseApiUrl = "http://10.0.30.169:8080";
+/** 后端 API 根地址（固定） */
+export const BaseApiUrl = "https://service.aiwriter.today/martechmng";
 
 function resolveApiBase(options = {}) {
   return (options.baseUrl || BaseApiUrl).replace(/\/$/, "");
@@ -144,8 +144,8 @@ export async function postCheckin(options = {}, body = {}) {
  * POST /api/v1/ops/activity/video
  * @param {Object} options - { baseUrl? }
  * @param {{ video_id?: string }} body - 当前后端可不传，默认空字符串
- * @returns {Promise<{ code: number, data?: { success: boolean, coin: number, total_coin: number, message: string, today_watched: number, remain_count: number, roulette?: { total_coins: number, earned_coins: number, remaining_coins: number, next_coin: number } }, message?: string }>}
- * @description data.roulette.earned_coins 为本次转盘抽中的金币数（前端转盘动画应对齐该值）
+ * @returns {Promise<{ code: number, data?: { success: boolean, coin: number, total_coin: number, message: string, today_watched: number, remain_count: number, roulette?: { total_coins: number, earned_coins: number, remaining_coins: number, next_coin: number, roulette_coins?: number[] } }, message?: string }>}
+ * @description data.coin 为本次看广告/转盘获得的金币数，前端转盘动画应对齐该值。
  */
 export async function postActivityVideo(options = {}, body = {}) {
   const baseUrl = resolveApiBase(options);

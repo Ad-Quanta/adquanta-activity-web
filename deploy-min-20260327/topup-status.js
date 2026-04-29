@@ -3,7 +3,8 @@ import { getChargeStatus, getActivityInfo } from "/activity-api.js";
 function showToast(message) {
   const toast = document.getElementById("toast");
   if (!toast) return;
-  toast.textContent = message;
+  const containsCJK = /[\u4e00-\u9fff]/.test(String(message || ""));
+  toast.textContent = containsCJK ? "Something went wrong. Please try again." : String(message ?? "");
   toast.style.display = "block";
   setTimeout(() => {
     toast.style.display = "none";
@@ -21,8 +22,15 @@ function normalizePhone(phoneRaw = "") {
 
 function normalizeStatus(statusRaw = "pending") {
   const s = String(statusRaw || "").toLowerCase();
+  // Some backends use numeric codes in query / API response.
+  // 0=pending, 1=success, 2=failed
+  if (s === "1") return "success";
+  if (s === "2" || s === "-1") return "failed";
+  if (s === "0") return "pending";
   if (s === "success") return "success";
-  if (s === "failed") return "failed";
+  // Backend may return: failed / fail / error / rejected / cancelled, etc.
+  if (s === "failed" || s === "fail" || s === "error" || s === "rejected" || s === "canceled" || s === "cancelled")
+    return "failed";
   if (s === "pending") return "pending";
   return "pending";
 }
@@ -128,7 +136,7 @@ async function main() {
   const amountLabel = qp.get("amount_label") || qp.get("send_value") || "-";
   const phoneNumber = qp.get("phone_number") || "";
   const operator = qp.get("operator") || "-";
-  const token = qp.get("token") || "";
+  const token = qp.get("token") || qp.get("access_token") || "";
   const baseUrl = qp.get("base_url") || "";
   const activityId = qp.get("activity_id") || "";
 
@@ -261,7 +269,7 @@ async function main() {
     if (token) p.set("token", token);
     if (activityId) p.set("activity_id", activityId);
     // "Back to Tasks" should return to the activity center page (not the redeem page).
-    window.location.href = `/activity/activity-center.html?${p.toString()}`;
+    window.location.href = `/activity-center.html?${p.toString()}`;
   };
 
   // Left-top back arrow should behave like a normal back navigation (previous page).
@@ -365,6 +373,14 @@ async function main() {
     mainEl.style.opacity = "1";
     mainEl.style.pointerEvents = "auto";
   };
+
+  // If the status is already terminal from the list page (success/failed),
+  // do not call status API again to avoid noisy error toasts.
+  if (statusFromQuery === "success" || statusFromQuery === "failed") {
+    renderByStatus(statusFromQuery);
+    showMain();
+    return;
+  }
 
   if (!distributorRef) {
     // No business identifier -> fall back to whatever the URL indicates.

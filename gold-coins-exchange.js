@@ -443,7 +443,7 @@ export class GoldCoinsExchange {
         this.updateUserGoldCoinsView();
       }
     } catch (e) {
-      logger.warn("[活动接口] 兑换页拉取失败", e?.message || e);
+      logger.warn("[Activity API] Exchange page fetch failed", e?.message || e);
     }
   }
 
@@ -489,7 +489,7 @@ export class GoldCoinsExchange {
         this.renderRecords(this.records, this.showAllRecords);
       }
     } catch (e) {
-      logger.warn("[获取兑换记录] 请求失败，使用空记录", e?.message || e);
+      logger.warn("[Redeem records] Request failed, using empty records", e?.message || e);
       this.records = [];
       this.renderRecords(this.records, false);
     }
@@ -568,6 +568,7 @@ export class GoldCoinsExchange {
              data-open-status="1"
              data-business-id="${escapeHtml(businessId)}"
              data-distributor-ref="${escapeHtml(r.distributor_ref || r.distributorRef || "")}"
+             data-status="${escapeHtml(String(statusRaw || ""))}"
              data-amount-label="${escapeHtml(String(amountLabel ?? ""))}"
              data-send-value="${escapeHtml(String(sendValue ?? ""))}"
              data-phone-number="${escapeHtml(String(phoneNumber ?? ""))}"
@@ -614,7 +615,7 @@ export class GoldCoinsExchange {
     params.set("token", String(this.config.apiOptions?.token || ""));
     params.set("base_url", String(this.config.apiOptions?.baseUrl || ""));
     params.set("activity_id", String(this.config.apiOptions?.activityId || ""));
-    window.location.href = `/activity/topup-status.html?${params.toString()}`;
+    window.location.href = `/topup-status.html?${params.toString()}`;
   }
 
   /**
@@ -676,12 +677,12 @@ export class GoldCoinsExchange {
         this.renderAmountGrid([]);
         this.chargesLoaded = true;
         this.setChargesUIVisible(true);
-        logger.log("[获取充值信息] 使用接口数据渲染运营商与面额\n" + JSON.stringify(res.data, null, 2));
+        logger.log("[Top-up] Render operators and amounts from API\n" + JSON.stringify(res.data, null, 2));
       } else {
         this.resetChargesUI();
       }
     } catch (e) {
-      logger.warn("[获取充值信息] 请求失败", e?.message || e);
+      logger.warn("[Top-up] Request failed", e?.message || e);
       this.resetChargesUI();
     } finally {
       this.chargesLoading = false;
@@ -759,6 +760,37 @@ export class GoldCoinsExchange {
   updateUserGoldCoinsView() {
     if (this.$.userGoldCoins) {
       this.$.userGoldCoins.textContent = this.userGoldCoins;
+    }
+  }
+
+  async sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * After redeem submit succeeds, poll base info to refresh wallet coin.
+   * Rules:
+   * - Poll every 3 seconds
+   * - Maximum 4 requests
+   * - Stop early once coin decreases
+   */
+  async pollWalletAfterRedeem(previousCoins) {
+    const before = Number(previousCoins ?? this.userGoldCoins ?? 0);
+    for (let i = 0; i < 4; i++) {
+      await this.sleep(3000);
+      try {
+        const res = await getActivityInfo(this.config.apiOptions);
+        const nextCoin = Number(res?.data?.wallet_info?.coin);
+        if (!Number.isFinite(nextCoin)) continue;
+        this.userGoldCoins = nextCoin;
+        this.updateUserGoldCoinsView();
+        this.updateRedeemState();
+        if (nextCoin < before) {
+          break;
+        }
+      } catch (e) {
+        logger.warn("[Wallet refresh after redeem] Request failed", e?.message || e);
+      }
     }
   }
 
@@ -1014,6 +1046,10 @@ export class GoldCoinsExchange {
         return;
       }
 
+      // Refresh wallet coin after redeem submit:
+      // poll every 3 seconds, max 4 times, stop once coin decreases.
+      await this.pollWalletAfterRedeem(this.userGoldCoins);
+
       // Submit succeeded and order created: jump to detail page.
       this.openTopupStatusPage({
         distributor_ref: distributorRef,
@@ -1059,10 +1095,11 @@ export class GoldCoinsExchange {
         const business_id = row.getAttribute("data-business-id") || "";
         if (!business_id) return;
         const distributor_ref = row.getAttribute("data-distributor-ref") || "";
+        const statusRaw = row.getAttribute("data-status") || "";
         this.openTopupStatusPage({
           business_id,
           distributor_ref,
-          status: "pending",
+          status: statusRaw || "pending",
           amount_label: row.getAttribute("data-amount-label") || "",
           send_value: row.getAttribute("data-send-value") || "",
           phone_number: row.getAttribute("data-phone-number") || "",

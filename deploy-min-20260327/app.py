@@ -13,7 +13,7 @@ app = Flask(__name__)
 # 获取当前目录作为静态文件根目录
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-BACKEND_BASE_URL = os.environ.get("BACKEND_BASE_URL", "http://10.0.30.169:8080").rstrip("/")
+BACKEND_BASE_URL = os.environ.get("BACKEND_BASE_URL", "https://martechmng-fe.vercel.app/applications").rstrip("/")
 
 @app.route("/api/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 def proxy_api(path):
@@ -68,16 +68,23 @@ def proxy_api(path):
     resp.headers["Access-Control-Allow-Headers"] = "Authorization,Content-Type"
     return resp
 
-@app.route('/')
-@app.route('/index.html')
-def index():
-    """首页统一跳转到活动入口页"""
-    return redirect('/activity.html', code=302)
+def _redirect_activity_center():
+    """根路径默认进入活动中心，单次跳转，保留 query（code/token 等）。"""
+    qs = request.query_string.decode("utf-8") if request.query_string else ""
+    target = "/activity-center.html" + (f"?{qs}" if qs else "")
+    return redirect(target, code=302)
 
-@app.route('/activity.html')
+
+@app.route("/")
+@app.route("/index.html")
+def index():
+    return _redirect_activity_center()
+
+
+@app.route("/activity.html")
 def activity_entry():
-    """活动入口页：重定向到活动中心"""
-    return redirect('/activity/activity-center.html', code=302)
+    """兼容旧入口：同样直达活动中心（单次跳转）。"""
+    return _redirect_activity_center()
 
 @app.route('/activity/<path:filename>')
 def serve_activity_static(filename):
@@ -109,8 +116,8 @@ if __name__ == '__main__':
     print("H5 活动页面服务器启动中...")
     print("=" * 60)
     print(f"访问地址：http://localhost:8848")
-    print(f"首页：http://localhost:8848/index.html -> /activity.html")
-    print(f"活动中心：http://localhost:8848/activity/activity-center.html")
+    print(f"默认入口：http://localhost:8848/ -> /activity-center.html（单次跳转）")
+    print(f"活动中心：http://localhost:8848/activity-center.html")
     print("=" * 60)
     
     # 运行在本地，端口 8848

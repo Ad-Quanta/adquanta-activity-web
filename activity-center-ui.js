@@ -67,6 +67,7 @@ export class WelfareCenterUI {
     this.spinRotation = 0;
     this._spinInFlight = false;
     this._waitingAdForSpin = false;
+    this._signinVideoCompleted = false;
   }
 
   /** 将展示金额映射到转盘扇区（优先精确匹配，找不到再取最近） */
@@ -196,6 +197,19 @@ export class WelfareCenterUI {
     if (this.elements.spinWheelSubtitle) {
       this.elements.spinWheelSubtitle.textContent = "Tap Spin Now to spin your reward!";
     }
+  }
+
+  handleRewardAdFailedForSpin(message = "Ad failed to play, please try again") {
+    this._waitingAdForSpin = false;
+    this._turntableNeedsWatch = true;
+    if (this.elements.spinWheelSpinBtn) {
+      this.elements.spinWheelSpinBtn.disabled = false;
+      this.elements.spinWheelSpinBtn.textContent = "Watch to Spin Again";
+    }
+    if (this.elements.spinWheelSubtitle) {
+      this.elements.spinWheelSubtitle.textContent = "Tap Watch to Spin Again to watch a video and earn a spin chance.";
+    }
+    this.showToast(message, "warning");
   }
 
   /**
@@ -337,10 +351,12 @@ export class WelfareCenterUI {
       return;
     }
     this._spinInFlight = true;
+    const prizePoolAtSpinStart = this.spinPrizePool.slice();
     if (this.elements.spinWheelSpinBtn) {
       this.elements.spinWheelSpinBtn.disabled = true;
     }
     let prize = 0;
+    let refreshAfterSpin = null;
     try {
       const result = await this.config.onSpinRequest();
       if (!result?.ok) {
@@ -348,19 +364,27 @@ export class WelfareCenterUI {
         return;
       }
       prize = Number(result.coin ?? 0);
+      if (typeof result.refreshAfterSpin === "function") {
+        refreshAfterSpin = result.refreshAfterSpin;
+      }
     } catch (_) {
       this._spinInFlight = false;
       return;
     }
     this.consumeSpinChance(1);
+    this.spinPrizePool = prizePoolAtSpinStart;
     const idx = this._sectorIndexForPrize(prize);
-    const sectorDeg = 360 / this.spinPrizePool.length;
+    const sectorDeg = 360 / prizePoolAtSpinStart.length;
     // Always stop inside a sector (never on separator lines).
     const safeMarginDeg = 4;
     const maxOffsetDeg = Math.max(0, sectorDeg / 2 - safeMarginDeg);
     const randomOffsetDeg = (Math.random() * 2 - 1) * maxOffsetDeg;
     const targetDeg = 360 - (idx * sectorDeg + sectorDeg / 2 + randomOffsetDeg);
-    this.spinRotation += 1800 + targetDeg;
+    const currentDeg = ((this.spinRotation % 360) + 360) % 360;
+    const normalizedTargetDeg = ((targetDeg % 360) + 360) % 360;
+    let deltaDeg = (normalizedTargetDeg - currentDeg + 360) % 360;
+    if (deltaDeg < 1) deltaDeg += 360;
+    this.spinRotation += 1800 + deltaDeg;
     if (this.elements.spinWheelDisk) {
       this.elements.spinWheelDisk.style.transform = `rotate(${this.spinRotation}deg)`;
     }
@@ -389,6 +413,9 @@ export class WelfareCenterUI {
       }
       finished = true;
       this.showSpinRewardDialog(prize);
+      if (refreshAfterSpin) {
+        refreshAfterSpin().catch(() => {});
+      }
       this._spinInFlight = false;
     };
 
@@ -470,7 +497,16 @@ export class WelfareCenterUI {
   showToast(message, type = "info") {
     if (!this.elements.toast) return;
 
-    this.elements.toast.textContent = message;
+    const containsCJK = /[\u4e00-\u9fff]/.test(String(message || ""));
+    const fallbackByType = {
+      success: "Done.",
+      error: "Something went wrong. Please try again.",
+      warning: "Please try again.",
+      info: "Please wait...",
+    };
+    const safeText = containsCJK ? (fallbackByType[type] || "Please try again.") : String(message ?? "");
+
+    this.elements.toast.textContent = safeText;
     this.elements.toast.className = `toast ${type}`;
     this.elements.toast.style.display = "block";
     setTimeout(() => {
@@ -561,6 +597,7 @@ export class WelfareCenterUI {
     if (this.elements.signinDialog) {
       this.elements.signinDialog.style.display = "flex";
     }
+    this.updateSigninDialogVideoButtonState();
   }
 
   /**
@@ -603,6 +640,7 @@ export class WelfareCenterUI {
         const span = this.elements.signinTimerBtn.querySelector("span");
         if (span) span.textContent = "Check-in Now";
       }
+      this._signinVideoCompleted = false;
       return;
     }
 
@@ -641,6 +679,7 @@ export class WelfareCenterUI {
       const today = daysList.find((d) => d.current === true);
       const received = !!today?.received;
       const videoReceived = !!today?.video_received;
+      this._signinVideoCompleted = videoReceived;
       const allCompleted = received && videoReceived;
       const canCheckin = !allCompleted;
       signinBtn.disabled = !canCheckin;
@@ -653,6 +692,32 @@ export class WelfareCenterUI {
       const span = signinBtn.querySelector("span");
       if (span) span.textContent = canCheckin ? "Check-in Now" : "Completed";
     }
+    this.updateSigninDialogVideoButtonState();
+  }
+
+  updateSigninDialogVideoButtonState() {
+    if (!this.elements.signinDialogWatchBtn) return;
+    this.elements.signinDialogWatchBtn.disabled = this._signinVideoCompleted;
+    this.elements.signinDialogWatchBtn.classList.toggle("is-completed", this._signinVideoCompleted);
+    if (this._signinVideoCompleted) {
+      this.elements.signinDialogWatchBtn.textContent = "Completed";
+    } else if (!this.elements.signinDialogWatchBtn.querySelector(".signin-dialog-watch-icon")) {
+      this.elements.signinDialogWatchBtn.innerHTML = `
+        <img src="/icons/play_circle.svg" alt="" class="signin-dialog-watch-icon" width="24" height="24">
+        <span>Get <span id="signinDialogMultiplier">${this.elements.signinDialogMultiplier?.textContent || "0"}</span>x Extra Coins (Watch Video)</span>
+      `;
+      this.elements.signinDialogMultiplier = document.getElementById("signinDialogMultiplier");
+    }
+  }
+
+  markSigninVideoCompleted() {
+    this._signinVideoCompleted = true;
+    this.setSigninWatchLoading(false);
+    this.updateSigninDialogVideoButtonState();
+  }
+
+  isSigninVideoCompleted() {
+    return this._signinVideoCompleted === true;
   }
 
   /**
@@ -747,6 +812,10 @@ export class WelfareCenterUI {
    */
   setSigninWatchLoading(loading) {
     if (!this.elements.signinDialogWatchBtn) return;
+    if (!loading && this._signinVideoCompleted) {
+      this.updateSigninDialogVideoButtonState();
+      return;
+    }
     this.elements.signinDialogWatchBtn.disabled = !!loading;
     if (loading) {
       this.elements.signinDialogWatchBtn.classList.add("tc-signin-watch-loading");

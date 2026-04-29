@@ -40,7 +40,7 @@ export class WelfareCenterAdapter {
           this.config.token,
           this.config.channelTag
         );
-        logger.log("SDK init 成功:", session);
+        logger.log("SDK init succeeded:", session);
 
         // 追踪页面浏览事件
         await window.ActivityBridgeHelper.trackEvent("page_view", {
@@ -55,7 +55,7 @@ export class WelfareCenterAdapter {
         throw error;
       }
     } else {
-      logger.error("ActivityBridgeHelper 未注入，请确保原生 SDK 已正确加载");
+      logger.error("ActivityBridgeHelper is not injected. Please ensure the native SDK is loaded correctly.");
       this.isSDKReady = false;
       this.config.onSDKReady(null);
       return null;
@@ -91,7 +91,7 @@ export class WelfareCenterAdapter {
         } else if (checkCount >= 30) {
           // 3秒超时
           clearInterval(checkInterval);
-          logger.warn("ActivityBridgeHelper 加载超时，请确保原生 SDK 已正确注入");
+          logger.warn("ActivityBridgeHelper injection timed out. Please ensure the native SDK is injected correctly.");
           resolve(); // 仍然继续，不阻塞页面初始化
         }
       }, 100);
@@ -118,7 +118,7 @@ export class WelfareCenterAdapter {
    */
   async triggerRewardAd(eventData = {}) {
     if (!window.ActivityBridgeHelper?.triggerEvent) {
-      throw new Error("ActivityBridgeHelper 未注入");
+      throw new Error("ActivityBridgeHelper is not injected");
     }
 
     const defaultEventData = {
@@ -141,7 +141,7 @@ export class WelfareCenterAdapter {
    */
   async triggerInterstitialAd(eventData = {}) {
     if (!window.ActivityBridgeHelper?.triggerEvent) {
-      throw new Error("ActivityBridgeHelper 未注入");
+      throw new Error("ActivityBridgeHelper is not injected");
     }
 
     const defaultEventData = {
@@ -163,7 +163,7 @@ export class WelfareCenterAdapter {
    */
   async trackEvent(eventType, eventData = {}) {
     if (!window.ActivityBridgeHelper?.trackEvent) {
-      logger.warn("ActivityBridgeHelper 未注入，无法追踪事件");
+      logger.warn("ActivityBridgeHelper is not injected, cannot track events");
       return;
     }
 

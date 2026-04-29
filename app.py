@@ -5,15 +5,57 @@ H5 活动页面静态文件服务器
 """
 from flask import Flask, send_from_directory, request, Response, redirect
 import os
-import urllib.request
+import subprocess
+import sys
 import urllib.error
+import urllib.request
+from urllib.parse import urlparse
 
 app = Flask(__name__)
 
 # 获取当前目录作为静态文件根目录
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-BACKEND_BASE_URL = os.environ.get("BACKEND_BASE_URL", "http://10.0.30.169:8080").rstrip("/")
+BACKEND_BASE_URL = os.environ.get("BACKEND_BASE_URL", "https://martechmng-fe.vercel.app/applications").rstrip("/")
+
+# 手机/局域网访问地址（仅用于启动提示与校验；服务实际监听 0.0.0.0:8848，任意本机网卡 IP 均可）
+MOBILE_ACCESS_URL = os.environ.get("MOBILE_ACCESS_URL", "http://10.0.32.23:8848").strip()
+
+
+def _macos_interface_ipv4s():
+    addrs = []
+    if sys.platform != "darwin":
+        return addrs
+    for i in range(12):
+        try:
+            out = subprocess.check_output(
+                ["ipconfig", "getifaddr", f"en{i}"], text=True, timeout=0.35, stderr=subprocess.DEVNULL
+            )
+            ip = (out or "").strip()
+            if ip:
+                addrs.append((f"en{i}", ip))
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            pass
+    return addrs
+
+
+def _lan_url_warning(mobile_url: str):
+    """若提示里的主机名不在本机网卡上，打印一条告警（便于同网段手机访问排障）。"""
+    try:
+        host = urlparse(mobile_url).hostname
+    except Exception:
+        return
+    if not host or host in ("localhost", "127.0.0.1"):
+        return
+    if sys.platform != "darwin":
+        return
+    for _, ip in _macos_interface_ipv4s():
+        if ip == host:
+            return
+    en_list = _macos_interface_ipv4s()
+    detail = f" 当前本机: {', '.join(f'{a}={b}' for a, b in en_list) or '无 en* 地址'}"
+    print(f"⚠ 提示地址中的 {host} 未出现在本机 en* 上。{detail}")
+    print("  请在本机将 Wi-Fi 配成该 IP，或设 MOBILE_ACCESS_URL=实际网卡上的 http://<IP>:8848")
 
 @app.route("/api/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 def proxy_api(path):
@@ -68,16 +110,23 @@ def proxy_api(path):
     resp.headers["Access-Control-Allow-Headers"] = "Authorization,Content-Type"
     return resp
 
-@app.route('/')
-@app.route('/index.html')
-def index():
-    """首页统一跳转到活动入口页"""
-    return redirect('/activity.html', code=302)
+def _redirect_activity_center():
+    """根路径默认进入活动中心，单次跳转，保留 query（code/token 等）。"""
+    qs = request.query_string.decode("utf-8") if request.query_string else ""
+    target = "/activity-center.html" + (f"?{qs}" if qs else "")
+    return redirect(target, code=302)
 
-@app.route('/activity.html')
+
+@app.route("/")
+@app.route("/index.html")
+def index():
+    return _redirect_activity_center()
+
+
+@app.route("/activity.html")
 def activity_entry():
-    """活动入口页：重定向到活动中心"""
-    return redirect('/activity/activity-center.html', code=302)
+    """兼容旧入口：同样直达活动中心（单次跳转）。"""
+    return _redirect_activity_center()
 
 @app.route('/activity/<path:filename>')
 def serve_activity_static(filename):
@@ -108,10 +157,10 @@ if __name__ == '__main__':
     print("=" * 60)
     print("H5 活动页面服务器启动中...")
     print("=" * 60)
-    print(f"访问地址：http://localhost:8848")
-    print(f"首页：http://localhost:8848/index.html -> /activity.html")
-    print(f"活动中心：http://localhost:8848/activity/activity-center.html")
+    print(f"本机：http://127.0.0.1:8848")
+    print(f"手机/局域网：{MOBILE_ACCESS_URL}（同 WiFi 下打开；监听 0.0.0.0:8848 已放通网内访问）")
+    _lan_url_warning(MOBILE_ACCESS_URL)
+    print("默认入口：/ -> /activity-center.html；活动中心 /activity-center.html")
     print("=" * 60)
-    
-    # 运行在本地，端口 8848
-    app.run(host='0.0.0.0', port=8848, debug=True)
+    # 0.0.0.0：手机用 http://<电脑局域网IP>:8848 即达，不绑定单一 IP
+    app.run(host="0.0.0.0", port=8848, debug=True)

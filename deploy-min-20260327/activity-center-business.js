@@ -104,7 +104,7 @@ export class WelfareCenterBusiness {
             this.config.onTaskUpdate({ watchAd: this.adTaskStatus });
           }
         }
-        logger.log("[活动接口] 使用接口数据\n", {
+        logger.log("[Activity API] Using response data\n", {
           user_id: this.userId,
           goldCoins: this.userAssets.goldCoins,
           checkin: this.checkinDetail != null,
@@ -112,10 +112,10 @@ export class WelfareCenterBusiness {
         });
         return { ok: true, data: res.data };
       }
-      logger.warn("[活动接口] 返回码异常\n" + JSON.stringify({ code: res.code, res }, null, 2));
+      logger.warn("[Activity API] Unexpected response code\n" + JSON.stringify({ code: res.code, res }, null, 2));
       throw new Error(res.message || "API returned an error");
     } catch (error) {
-      logger.error("[活动接口] 请求失败", error?.message ?? error);
+      logger.error("[Activity API] Request failed", error?.message ?? error);
       return { ok: false, error };
     }
   }
@@ -152,14 +152,14 @@ export class WelfareCenterBusiness {
    * @returns {Promise<{ ok: boolean }>}
    */
   async claimCheckinVideoReward(apiOptions = {}, video_id = "") {
-    logger.log("[签到看视频领奖] 调用 /api/v1/ops/activity/checkin type=triple, video_id=" + video_id);
+    logger.log("[Check-in video reward] Call /api/v1/ops/activity/checkin type=triple, video_id=" + video_id);
     let success = false;
     try {
       const res = await postCheckin(apiOptions, { type: "triple" });
       const msg = res.data?.message ?? res.message ?? "";
       if (res.code === 200) {
         success = true;
-        this.config.onToast(msg || "Video completed! Coins rewarded.", "success");
+        this.config.onToast("Video check-in successful", "success");
       } else {
         this.config.onToast(msg || "Claim failed", "error");
       }
@@ -171,7 +171,7 @@ export class WelfareCenterBusiness {
     if (success) {
       await this.loadActivityInfo(apiOptions);
     }
-    return { ok: true };
+    return { ok: success };
   }
 
   /**
@@ -181,15 +181,20 @@ export class WelfareCenterBusiness {
    * @returns {Promise<{ ok: boolean }>}
    */
   async claimDailyVideoReward(apiOptions = {}, video_id = "") {
-    logger.log("[转盘结算] 调用 /api/v1/ops/activity/video video_id=" + video_id);
+    logger.log("[Spin settlement] Call /api/v1/ops/activity/video video_id=" + video_id);
     try {
       const res = await postActivityVideo(apiOptions, { video_id });
       const msg = res.data?.message ?? res.message ?? "";
       if (res.code === 200 && res.data?.success) {
-        await this.loadActivityInfo(apiOptions);
+        const coinValue = res.data?.coin;
+        const rewardCoin = Number(coinValue);
+        if (coinValue == null || coinValue === "" || !Number.isFinite(rewardCoin)) {
+          this.config.onToast("No coins received", "error");
+          return { ok: false };
+        }
         return {
           ok: true,
-          coin: Number(res.data?.coin ?? 0),
+          coin: rewardCoin,
           roulette: res.data?.roulette ?? null,
           message: msg || "Video completed! Coins rewarded.",
         };
