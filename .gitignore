@@ -37,8 +37,17 @@ Thumbs.db
 *.swp
 *.swo
 
-# 构建/产出（若有）
+# ── 构建/打包产出：不上传到远端，仅保留工程源码与 README 等文档 ──
 dist/
+dist.zip
+*.zip
+*.tar.gz
+*.tgz
 build/
+coverage/
+.npm-cache/
+.cache/
+
+# 若将来由构建生成压缩资源，不参与版本控制（当前工程为源码直出）
 *.min.js
 *.min.css

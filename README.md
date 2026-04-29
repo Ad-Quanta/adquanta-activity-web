@@ -1,96 +1,84 @@
-# AdQuanta 活动平台 H5
+# AdQuanta Activity Web
 
-本仓库为 **AdQuanta 活动平台** 的 H5 前端，包含活动首页、活动中心、积分兑换等页面。
+这是一个源码直出的 H5 工程，包含活动中心、金币兑换和充值结果页。
 
-- 技术栈：**HTML + JS + CSS**，通过 `ActivityRuntimeSDK` 与活动平台后端协作
-- 页面加载后执行 JS，完成：
-  - 初始化（读取 URL 里的 `code/token`，换取 `sessionContext`）
-  - 事件上报
-  - 抽奖（对接抽奖引擎）
-  - 领奖（发奖任务状态机）
+## 页面入口
 
-## 页面列表
+- `activity-center.html`：活动中心主页面
+- `gold-coins-exchange.html`：金币兑换页面
+- `topup-status.html`：充值状态页
+- `index.html`：仅做入口跳转，默认跳到 `activity-center.html`
 
-### 1. 活动首页 (`index.html`)
+## 本地开发
 
-活动首页，展示用户的积分和快速导航到各个活动页面。
-
-### 2. 活动中心页面 (`activity-center.html`)
-
-完整的活动中心页面，包含：
-
-- **我的资产区域**：显示用户的积分，支持积分兑换功能
-- **任务列表**：
-  - 看广告赚积分：观看完整广告后可领取积分奖励
-  - 签到：每日签到功能
-
-**核心功能**：
-- App 跳转时通过 URL 参数传递用户信息（`code`/`token`）
-- 页面加载后自动调用后端接口获取用户资产和任务数据
-- 广告观看：点击”去完成”播放广告，观看完成后可领取积分
-- 实时更新资产和任务状态
-
-### 3. 积分兑换页面 (`gold-coins-exchange.html`)
-
-积分兑换页面，用户可使用积分兑换商品。
-
-**核心功能**：
-- 展示用户当前积分
-- 可兑换商品列表
-- 积分兑换下单
-
-## 使用方法
-
-### 1. 直接打开
-
-双击打开对应 HTML 文件即可访问。
-
-App 透传需携带的 URL 参数：
-
-- `activityId`：活动 ID
-- `code`：一次性 code
-- `token`：短期 token
-- `channelTag`：渠道标识
-
-**活动首页**：`index.html?activityId=activity_home_202512&code=abc123&channelTag=app`
-
-**活动中心**：`activity-center.html?activityId=activity_center_202512&code=abc123&channelTag=app`
-
-**积分兑换**：`gold-coins-exchange.html?activityId=points_exchange_202512&code=abc123&channelTag=app`
-
-### 2. 本地服务运行
-
-在项目目录下执行：
+如果只需要查看静态页面，可以直接启动静态服务：
 
 ```bash
 python3 -m http.server 5173
 ```
 
-或使用项目自带的 Flask 服务（端口 8848）：
+如果需要联调接口，使用项目内的 Flask 本地服务：
 
 ```bash
 python3 app.py
-# 或：.venv/bin/python app.py
 ```
 
-访问：`http://localhost:8848`，首页 `/index.html`，活动中心 `/activity-center.html`，积分兑换 `/gold-coins-exchange.html`。
+默认访问地址：
 
-## 活动中心页面使用说明
+- `http://127.0.0.1:8848/activity-center.html`
+- `http://127.0.0.1:8848/gold-coins-exchange.html`
+- `http://127.0.0.1:8848/topup-status.html`
 
-### 广告观看流程
+`app.py` 会同时提供静态文件服务和 `/api/*` 反向代理，便于本地避免 CORS 问题。
 
-1. 点击「看广告赚积分」任务中的「去完成」按钮
-2. 弹出广告播放界面，显示播放进度
-3. 广告播放完成后，按钮变为「领取」状态（高亮）
-4. 点击「领取」获得积分奖励
+## 部署说明
 
-### 注意事项
+当前仓库保留的是可直接部署到静态存储或 CDN 的源码文件。
 
-- 广告未播放完成即关闭时，无法领取奖励
-- 播放完成后按钮会自动变为可领取状态
+后续建议通过 GitHub Actions 自动发布到 OSS/CDN，不再维护手工部署目录或发布快照。
 
----
+## GitHub Actions 自动部署
 
+仓库已提供 `master` 分支自动部署工作流：
 
+- 工作流文件：`.github/workflows/deploy-to-tos.yml`
+- 上传脚本：`scripts/deploy_to_tos.py`
+- 触发条件：代码 `push` 到 `master` 后自动执行
 
+### 需要配置的 GitHub Secrets
 
+- `TOS_ACCESS_KEY_ID`
+- `TOS_SECRET_ACCESS_KEY`
+- `TOS_ENDPOINT`
+- `TOS_REGION`
+- `TOS_BUCKET`
+- `TOS_KEY_PREFIX`
+- `TOS_CDN_DOMAIN`
+
+其中典型值示例：
+
+- `TOS_ENDPOINT`: `https://tos-s3-cn-guangzhou.volces.com`
+- `TOS_REGION`: `cn-guangzhou`
+- `TOS_BUCKET`: `ad-quanta`
+- `TOS_KEY_PREFIX`: 可留空，或填如 `activity-web`
+- `TOS_CDN_DOMAIN`: `https://ad-quanta-cdn.moyoung.com`
+
+### 实现细节
+
+上传脚本按火山引擎 TOS 的 S3 兼容方式实现：
+
+- 使用 `boto3`
+- 显式指定 `signature_version='s3v4'`
+- 使用 `s3={'addressing_style': 'virtual'}`
+
+默认会自动扫描仓库中的站点资源并上传，不再写死文件列表。
+
+上传排除规则由根目录的 `.tosignore` 控制。
+
+当前 `.tosignore` 已排除这类内容：
+
+- `.github/`、`scripts/`、虚拟环境、构建目录
+- `README.md`、`app.py`
+- `*.md`、`*.py`、日志和常见临时文件
+
+也就是说，后续你新增或删除 HTML、CSS、JS、图片、SVG 等静态资源，通常不需要再改部署脚本；如果只想调整部署范围，直接修改 `.tosignore` 即可。
