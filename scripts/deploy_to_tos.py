@@ -20,6 +20,25 @@ IGNORE_FILE = ROOT_DIR / ".tosignore"
 HARD_EXCLUDED_DIRS = {
     ".git",
 }
+CONTENT_TYPE_MAP = {
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".xml": "application/xml; charset=utf-8",
+    ".txt": "text/plain; charset=utf-8",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".otf": "font/otf",
+}
 
 
 def get_env(name: str) -> str:
@@ -94,6 +113,10 @@ def matches_pattern(relative_key: str, pattern: str) -> bool:
 
 
 def guess_content_type(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix in CONTENT_TYPE_MAP:
+        return CONTENT_TYPE_MAP[suffix]
+
     content_type, _ = mimetypes.guess_type(path.name)
     return content_type or "application/octet-stream"
 
