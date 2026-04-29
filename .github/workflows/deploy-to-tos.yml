@@ -1,0 +1,34 @@
+name: Deploy To TOS
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install boto3
+
+      - name: Deploy site files to TOS
+        env:
+          TOS_ACCESS_KEY_ID: ${{ secrets.TOS_ACCESS_KEY_ID }}
+          TOS_SECRET_ACCESS_KEY: ${{ secrets.TOS_SECRET_ACCESS_KEY }}
+          TOS_ENDPOINT: ${{ secrets.TOS_ENDPOINT }}
+          TOS_REGION: ${{ secrets.TOS_REGION }}
+          TOS_BUCKET: ${{ secrets.TOS_BUCKET }}
+          TOS_KEY_PREFIX: ${{ secrets.TOS_KEY_PREFIX }}
+          TOS_CDN_DOMAIN: ${{ secrets.TOS_CDN_DOMAIN }}
+        run: python3 scripts/deploy_to_tos.py

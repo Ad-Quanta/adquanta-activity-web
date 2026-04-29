@@ -1,95 +1,84 @@
-# AdQuanta 活动平台 H5
+# AdQuanta Activity Web
 
-本仓库为 **AdQuanta 活动平台** 的 H5 前端，包含活动首页、活动中心、金币兑换等页面。
+这是一个源码直出的 H5 工程，包含活动中心、金币兑换和充值结果页。
 
-- 技术栈：**HTML + JS + CSS**，通过 `ActivityBridgeHelper` 与 Native 及活动后端协作
-- 页面加载后执行 JS，完成：初始化（URL 参数 `code`/`token`）、事件上报、任务与资产展示
+## 页面入口
 
-## 页面列表
+- `activity-center.html`：活动中心主页面
+- `gold-coins-exchange.html`：金币兑换页面
+- `topup-status.html`：充值状态页
+- `index.html`：仅做入口跳转，默认跳到 `activity-center.html`
 
-### 1. 活动首页 (`index.html`)
+## 本地开发
 
-活动首页，展示用户积分与快速导航。
-
-### 2. 活动中心页面 (`activity-center.html`)
-
-活动中心仅包含两类任务：
-
-- **签到任务**：每日签到领金币，签到成功后可选「看视频」获取额外金币
-- **看视频任务**：每日观看激励视频，看完可领取金币（每日次数与奖励由后端配置）
-
-**核心功能**：
-- **我的资产**：展示当前金币，入口跳转金币兑换页
-- App 通过 URL 传递 `code`/`token`；页面加载后请求后端基础信息接口获取资产与任务数据
-- **激励视频**：两处展位——① 每日看视频任务（Watch Now / Claim）② 签到成功弹框内「看视频领额外金币」
-- 实时更新资产与任务状态
-
-### 3. 金币兑换页面 (`gold-coins-exchange.html`)
-
-用户使用金币兑换话费充值等权益。
-
-**核心功能**：
-- 展示当前金币余额
-- 话费面额与所需金币来自接口 `/api/v1/ops/activity/charges`
-- 兑换记录来自基础信息接口 `data.records`（仅展示兑换类型）
-
-## 使用方法
-
-### 1. 直接打开
-
-双击打开对应 HTML 文件即可访问。
-
-App 透传需携带的 URL 参数：
-
-- `activityId`：活动 ID
-- `code`：一次性 code
-- `token`：短期 token
-- `channelTag`：渠道标识
-
-**活动首页**：`index.html?activityId=activity_home_202512&code=abc123&channelTag=app`
-
-**活动中心**：`activity-center.html?activityId=activity_center_202512&code=abc123&channelTag=app`
-
-**积分兑换**：`gold-coins-exchange.html?activityId=points_exchange_202512&code=abc123&channelTag=app`
-
-### 2. 本地服务运行
-
-在项目目录下执行：
+如果只需要查看静态页面，可以直接启动静态服务：
 
 ```bash
 python3 -m http.server 5173
 ```
 
-或使用项目自带的 Flask 服务（端口 8848）：
+如果需要联调接口，使用项目内的 Flask 本地服务：
 
 ```bash
 python3 app.py
-# 或：.venv/bin/python app.py
 ```
 
-访问：`http://localhost:8848`，首页 `/index.html`，活动中心 `/activity-center.html`，积分兑换 `/gold-coins-exchange.html`。
+默认访问地址：
 
-## 活动中心使用说明
+- `http://127.0.0.1:8848/activity-center.html`
+- `http://127.0.0.1:8848/gold-coins-exchange.html`
+- `http://127.0.0.1:8848/topup-status.html`
 
-### 签到流程
+`app.py` 会同时提供静态文件服务和 `/api/*` 反向代理，便于本地避免 CORS 问题。
 
-1. 点击「Check-in Now」执行签到，成功后弹出签到成功弹框
-2. 可选择「Claim base reward only」仅领基础金币，或「Get Nx Extra Coins (Watch Video)」先关弹框再播激励视频领额外金币
-3. 签到看视频完成后会请求 `/api/v1/ops/activity/checkin`（`type=triple`）领奖并刷新基础信息
+## 部署说明
 
-### 每日看视频 / 转盘流程
+当前仓库保留的是可直接部署到静态存储或 CDN 的源码文件。
 
-1. 在「Lucky Spin」卡片进入大转盘或先看激励视频
-2. 激励视频播完后会请求 `POST /api/v1/ops/activity/video`（传 `video_id`）结算本次转盘金币并刷新基础信息；响应里 `data.roulette.earned_coins` 为本次抽中金币数，前端转盘动画与该值对齐
-3. 每日次数与奖池等由后端基础信息接口的 `tasks[type=video]`（含 `roulette`）配置
+后续建议通过 GitHub Actions 自动发布到 OSS/CDN，不再维护手工部署目录或发布快照。
 
-### 注意事项
+## GitHub Actions 自动部署
 
-- 广告未完整播放即关闭时无法领取奖励
-- 两处广告展位（签到看视频、每日看视频）均由 Native 按 `taskId` 区分，H5 不传广告位 ID
+仓库已提供 `master` 分支自动部署工作流：
 
----
+- 工作流文件：`.github/workflows/deploy-to-tos.yml`
+- 上传脚本：`scripts/deploy_to_tos.py`
+- 触发条件：代码 `push` 到 `master` 后自动执行
 
+### 需要配置的 GitHub Secrets
 
+- `TOS_ACCESS_KEY_ID`
+- `TOS_SECRET_ACCESS_KEY`
+- `TOS_ENDPOINT`
+- `TOS_REGION`
+- `TOS_BUCKET`
+- `TOS_KEY_PREFIX`
+- `TOS_CDN_DOMAIN`
 
+其中典型值示例：
 
+- `TOS_ENDPOINT`: `https://tos-s3-cn-guangzhou.volces.com`
+- `TOS_REGION`: `cn-guangzhou`
+- `TOS_BUCKET`: `ad-quanta`
+- `TOS_KEY_PREFIX`: 可留空，或填如 `activity-web`
+- `TOS_CDN_DOMAIN`: `https://ad-quanta-cdn.moyoung.com`
+
+### 实现细节
+
+上传脚本按火山引擎 TOS 的 S3 兼容方式实现：
+
+- 使用 `boto3`
+- 显式指定 `signature_version='s3v4'`
+- 使用 `s3={'addressing_style': 'virtual'}`
+
+默认会自动扫描仓库中的站点资源并上传，不再写死文件列表。
+
+上传排除规则由根目录的 `.tosignore` 控制。
+
+当前 `.tosignore` 已排除这类内容：
+
+- `.github/`、`scripts/`、虚拟环境、构建目录
+- `README.md`、`app.py`
+- `*.md`、`*.py`、日志和常见临时文件
+
+也就是说，后续你新增或删除 HTML、CSS、JS、图片、SVG 等静态资源，通常不需要再改部署脚本；如果只想调整部署范围，直接修改 `.tosignore` 即可。
